@@ -1,0 +1,54 @@
+sleigh = _{
+      SOI ~
+      NEWLINE* ~
+      (stmt ~ NEWLINE+)* ~
+      stmt? ~
+      EOI
+}
+
+stmt = _{ expr }
+
+expr = { preprocess | preprocess_macro }
+
+preprocess = { "@" ~ NEWLINE* ~ NEWLINE? ~ preprocess_type }
+  preprocess_type = _{
+    preprocess_include
+    | preprocess_define
+    | preprocess_undef
+    | preprocess_ifdef
+    | preprocess_ifndef
+    | preprocess_if
+    | preprocess_elif
+    | preprocess_endif
+    | preprocess_else
+  }
+  preprocess_include = { "include" ~ include_string }
+    include_string = _{ "\"" ~ (preprocess_macro | preprocess_include_file)+ ~ "\"" }
+      preprocess_include_file = @{ (!"\"" ~ !"$" ~ ANY)+ }
+  preprocess_define = { "define" ~ identifier_name ~ (quoted_string | identifier_name) }
+  preprocess_undef = { "undef" ~ identifier_name }
+  preprocess_ifdef = { "ifdef" ~ identifier_name }
+  preprocess_ifndef = { "ifndef" ~ identifier_name }
+  preprocess_if = { "if" ~  prep_if_value }
+    prep_if_value = _{ boolean_clause ~ (boolop ~ boolean_clause)* }
+      boolean_clause = {
+        "(" ~ prep_if_value ~ ")"
+        | ((defined_expr) | (operand ~ comp ~ operand))
+      }
+        operand = { (quoted_string | identifier_name) }
+        comp = { "==" | "!=" }
+        defined_expr = { "defined" ~ "(" ~ identifier_name ~ ")" }
+      boolop = { "&&" | "||" | "^^" }
+  preprocess_elif = { "elif" ~ prep_if_value }
+  preprocess_endif = { "endif" }
+  preprocess_else = { "else" }
+
+preprocess_macro = ${ "$(" ~ identifier_name ~ ")" }
+
+identifier_name = @{ (ASCII_ALPHANUMERIC | "_")+ }
+quoted_string = _{"\"" ~ string ~ "\""}
+string = @{ (!"\"" ~ ANY)* }
+
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+
+WHITESPACE = _{ "\r" | " " | "\t" }
