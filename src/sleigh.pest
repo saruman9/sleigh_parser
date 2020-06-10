@@ -8,7 +8,7 @@ sleigh = _{
 
 stmt = _{ expr }
 
-expr = { preprocess | preprocess_macro }
+expr = { preprocess | preprocess_macro | spec }
 
 preprocess = { "@" ~ NEWLINE* ~ NEWLINE? ~ preprocess_type }
   preprocess_type = _{
@@ -25,7 +25,7 @@ preprocess = { "@" ~ NEWLINE* ~ NEWLINE? ~ preprocess_type }
   preprocess_include = { "include" ~ include_string }
     include_string = _{ "\"" ~ (preprocess_macro | preprocess_include_file)+ ~ "\"" }
       preprocess_include_file = @{ (!"\"" ~ !"$" ~ ANY)+ }
-  preprocess_define = { "define" ~ identifier_name ~ (quoted_string | identifier_name) }
+  preprocess_define = { define_key ~ identifier_name ~ (quoted_string | identifier_name) }
   preprocess_undef = { "undef" ~ identifier_name }
   preprocess_ifdef = { "ifdef" ~ identifier_name }
   preprocess_ifndef = { "ifndef" ~ identifier_name }
@@ -45,10 +45,59 @@ preprocess = { "@" ~ NEWLINE* ~ NEWLINE? ~ preprocess_type }
 
 preprocess_macro = ${ "$(" ~ identifier_name ~ ")" }
 
+spec = {
+  endiandef
+  | aligndef
+  | definition
+  | constructorlike
+}
+
+definition = { (
+    tokendef
+    // | contextdef
+    // | spacedef
+    // | varnodedef
+    // | bitrangedef
+    // | pcodeopdef
+    // | valueattach
+    // | nameattach
+    // | varattach
+    // | error
+  ) ~
+  ";"
+}
+
+constructorlike = { (
+    "macro"
+    // constructor
+    // | macrodef
+    // | withblock
+    // | error
+  ) ~
+  "}"
+}
+
+endiandef = { define_key ~ "endian" ~ "=" ~ endian_value ~ ";" }
+  endian_value = { "big" | "little" }
+aligndef = { define_key ~ "alignment" ~ "=" ~ integer ~ ";" }
+tokendef = { tokenprop ~ ";" }
+  tokenprop = {
+    (define_key ~ token_key ~ symbol ~ "(" ~ integer ~ ")")
+    // | tokenprop fielddef
+    // | (define_key ~ token_key ~ anysymbol)
+  }
+
+
+define_key = _{ "define" }
+token_key = _{ "token" }
 identifier_name = @{ (ASCII_ALPHANUMERIC | "_")+ }
 quoted_string = _{"\"" ~ string ~ "\""}
 string = @{ (!"\"" ~ ANY)* }
+symbol = @{ (ASCII_ALPHA | "_" | ".") ~ (ASCII_ALPHANUMERIC | "_" | ".")* }
+integer_dec = _{ ASCII_DIGIT | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+) }
+integer_hex = _{ "0x" ~ ASCII_HEX_DIGIT+ }
+integer_bin = _{ "0b" ~ ASCII_BIN_DIGIT+ }
+integer = { integer_hex | integer_bin | integer_dec }
 
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
-
 WHITESPACE = _{ "\r" | " " | "\t" }
