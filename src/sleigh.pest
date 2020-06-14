@@ -1,7 +1,6 @@
 sleigh = _{
       SOI ~
-      NEWLINE* ~
-      (stmt ~ NEWLINE+)* ~
+      stmt* ~
       stmt? ~
       EOI
 }
@@ -10,7 +9,7 @@ stmt = _{ expr }
 
 expr = { preprocess | preprocess_macro | spec }
 
-preprocess = { "@" ~ NEWLINE* ~ NEWLINE? ~ preprocess_type }
+preprocess = { "@" ~ NEWLINE* ~ preprocess_type }
   preprocess_type = _{
     preprocess_include
     | preprocess_define
@@ -100,4 +99,4 @@ integer_bin = _{ "0b" ~ ASCII_BIN_DIGIT+ }
 integer = { integer_hex | integer_bin | integer_dec }
 
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
-WHITESPACE = _{ "\r" | " " | "\t" }
+WHITESPACE = _{ "\r" | " " | "\t" | "\n" }
