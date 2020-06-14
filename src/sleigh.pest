@@ -61,9 +61,7 @@ definition = { (
     // | valueattach
     // | nameattach
     // | varattach
-    // | error
-  ) ~
-  ";"
+  )
 }
 
 constructorlike = { (
@@ -71,9 +69,7 @@ constructorlike = { (
     // constructor
     // | macrodef
     // | withblock
-    // | error
-  ) ~
-  "}"
+  )
 }
 
 endiandef = { define_key ~ "endian" ~ "=" ~ endian_value ~ ";" }
