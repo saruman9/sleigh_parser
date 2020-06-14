@@ -78,9 +78,12 @@ aligndef = { define_key ~ "alignment" ~ "=" ~ integer ~ ";" }
 tokendef = { tokenprop ~ ";" }
   tokenprop = {
     (define_key ~ token_key ~ symbol ~ "(" ~ integer ~ ")")
-    // | tokenprop fielddef
+    | (tokenprop ~ fielddef)
     // | (define_key ~ token_key ~ anysymbol)
   }
+    fielddef = {
+      (symbol ~ "=" ~ "(" ~ integer ~ "," ~ integer ~ ")")
+    }
 
 
 define_key = _{ "define" }
