@@ -1,9 +1,4 @@
-sleigh = _{
-      SOI ~
-      stmt* ~
-      stmt? ~
-      EOI
-}
+sleigh = _{ SOI ~ stmt+ ~ EOI }
 
 stmt = _{ expr }
 
