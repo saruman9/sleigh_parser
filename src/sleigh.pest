@@ -19,7 +19,7 @@ preprocess = { "@" ~ NEWLINE* ~ preprocess_type }
   preprocess_include = { "include" ~ include_string }
     include_string = _{ "\"" ~ (preprocess_macro | preprocess_include_file)+ ~ "\"" }
       preprocess_include_file = @{ (!"\"" ~ !"$" ~ ANY)+ }
-  preprocess_define = { define_key ~ identifier_name ~ (quoted_string | identifier_name) }
+  preprocess_define = { DEFINE_KEY ~ identifier_name ~ (quoted_string | identifier_name) }
   preprocess_undef = { "undef" ~ identifier_name }
   preprocess_ifdef = { "ifdef" ~ identifier_name }
   preprocess_ifndef = { "ifndef" ~ identifier_name }
@@ -67,30 +67,39 @@ constructorlike = { (
   )
 }
 
-endiandef = { define_key ~ "endian" ~ "=" ~ endian_value ~ ";" }
-  endian_value = { "big" | "little" }
-aligndef = { define_key ~ "alignment" ~ "=" ~ integer ~ ";" }
-tokendef = { tokenprop ~ ";" }
-  tokenprop = {
-    (define_key ~ token_key ~ symbol ~ "(" ~ integer ~ ")")
-    | (tokenprop ~ fielddef)
-    // | (define_key ~ token_key ~ anysymbol)
-  }
-    fielddef = {
-      (symbol ~ "=" ~ "(" ~ integer ~ "," ~ integer ~ ")")
+endiandef = { DEFINE_KEY ~ "endian" ~ "=" ~ endian_value ~ ";" }
+  endian_value = { BIG_KEY | LITTLE_KEY }
+aligndef = { DEFINE_KEY ~ "alignment" ~ "=" ~ INTEGER ~ ";" }
+tokendef = { tokenprop_expr ~ ";" }
+  tokenprop_expr = { tokenprop ~ fielddef_expr* }
+    tokenprop = _{
+      DEFINE_KEY ~ TOKEN_KEY ~ SYMBOL ~ "(" ~ INTEGER ~ ")"
+      | DEFINE_KEY ~ TOKEN_KEY ~ SYMBOL
     }
+    fielddef_expr = { fielddef ~ fielddef_type* }
+      fielddef = _{ SYMBOL ~ "=" ~ "(" ~ INTEGER ~ "," ~ INTEGER ~ ")" }
+      fielddef_type = {
+        SIGNED_KEY
+        | HEX_KEY
+        | DEC_KEY
+      }
 
 
-define_key = _{ "define" }
-token_key = _{ "token" }
+DEFINE_KEY = _{ "define" }
+TOKEN_KEY = _{ "token" }
+SIGNED_KEY = { "signed" }
+HEX_KEY = { "hex" }
+DEC_KEY = { "dec" }
+BIG_KEY = { "big" }
+LITTLE_KEY = { "little" }
 identifier_name = @{ (ASCII_ALPHANUMERIC | "_")+ }
 quoted_string = _{"\"" ~ string ~ "\""}
 string = @{ (!"\"" ~ ANY)* }
-symbol = @{ (ASCII_ALPHA | "_" | ".") ~ (ASCII_ALPHANUMERIC | "_" | ".")* }
-integer_dec = _{ ASCII_DIGIT | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+) }
+SYMBOL = @{ (ASCII_ALPHA | "_" | ".") ~ (ASCII_ALPHANUMERIC | "_" | ".")* }
+integer_dec = _{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 integer_hex = _{ "0x" ~ ASCII_HEX_DIGIT+ }
 integer_bin = _{ "0b" ~ ASCII_BIN_DIGIT+ }
-integer = { integer_hex | integer_bin | integer_dec }
+INTEGER = @{ integer_hex | integer_bin | integer_dec }
 
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 WHITESPACE = _{ "\r" | " " | "\t" | "\n" }
