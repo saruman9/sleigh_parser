@@ -69,15 +69,17 @@ constructorlike = { (
 
 endiandef = { DEFINE_KEY ~ "endian" ~ "=" ~ endian_value ~ ";" }
   endian_value = { BIG_KEY | LITTLE_KEY }
+
 aligndef = { DEFINE_KEY ~ "alignment" ~ "=" ~ INTEGER ~ ";" }
-tokendef = { tokenprop_expr ~ ";" }
-  tokenprop_expr = { tokenprop ~ fielddef_expr* }
-    tokenprop = _{
-      DEFINE_KEY ~ TOKEN_KEY ~ SYMBOL ~ "(" ~ INTEGER ~ ")"
+
+tokendef = { tokenprop ~ ";" }
+  tokenprop = { tokenprop_expr ~ fielddef* }
+    tokenprop_expr = _{
+      DEFINE_KEY ~ TOKEN_KEY ~ (SYMBOL | quoted_string) ~ "(" ~ INTEGER ~ ")"
       | DEFINE_KEY ~ TOKEN_KEY ~ SYMBOL
     }
-    fielddef_expr = { fielddef ~ fielddef_type* }
-      fielddef = _{ SYMBOL ~ "=" ~ "(" ~ INTEGER ~ "," ~ INTEGER ~ ")" }
+    fielddef = { fielddef_expr ~ fielddef_type* }
+      fielddef_expr = _{ (SYMBOL | quoted_string) ~ "=" ~ "(" ~ INTEGER ~ "," ~ INTEGER ~ ")" }
       fielddef_type = {
         SIGNED_KEY
         | HEX_KEY
@@ -110,8 +112,8 @@ DEC_KEY = { "dec" }
 BIG_KEY = { "big" }
 LITTLE_KEY = { "little" }
 identifier_name = @{ (ASCII_ALPHANUMERIC | "_")+ }
-quoted_string = _{"\"" ~ string ~ "\""}
-string = @{ (!"\"" ~ ANY)* }
+quoted_string = _{"\"" ~ STRING ~ "\""}
+STRING = @{ (!"\"" ~ ANY)* }
 SYMBOL = @{ (ASCII_ALPHA | "_" | ".") ~ (ASCII_ALPHANUMERIC | "_" | ".")* }
 integer_dec = _{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 integer_hex = _{ "0x" ~ ASCII_HEX_DIGIT+ }
