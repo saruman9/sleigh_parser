@@ -4,7 +4,7 @@ stmt = _{ expr }
 
 expr = { preprocess | preprocess_macro | spec }
 
-preprocess = { "@" ~ NEWLINE* ~ preprocess_type }
+preprocess = { "@" ~ preprocess_type }
   preprocess_type = _{
     preprocess_include
     | preprocess_define
