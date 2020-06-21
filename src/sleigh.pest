@@ -48,7 +48,7 @@ spec = {
 
 definition = { (
     tokendef
-    // | contextdef
+    | contextdef
     // | spacedef
     // | varnodedef
     // | bitrangedef
@@ -84,10 +84,27 @@ tokendef = { tokenprop_expr ~ ";" }
         | DEC_KEY
       }
 
+contextdef = { contextprop ~ ";" }
+  contextprop = { contextprop_expr ~ contextfielddef* }
+    contextprop_expr = _{ DEFINE_KEY ~ CONTEXT_KEY ~ SYMBOL }
+    contextfielddef = { contextfielddef_expr ~ contextfielddef_type* }
+      contextfielddef_expr = _{
+        (SYMBOL | quoted_string) ~ "=" ~ "(" ~ INTEGER ~ "," ~ INTEGER ~ ")"
+        | SYMBOL ~ "=" ~ "(" ~ INTEGER ~ "," ~ INTEGER ~ ")"
+      }
+      contextfielddef_type = {
+        SIGNED_KEY
+        | NOFLOW_KEY
+        | HEX_KEY
+        | DEC_KEY
+      }
+
 
 DEFINE_KEY = _{ "define" }
 TOKEN_KEY = _{ "token" }
+CONTEXT_KEY = _{ "context" }
 SIGNED_KEY = { "signed" }
+NOFLOW_KEY = { "noflow" }
 HEX_KEY = { "hex" }
 DEC_KEY = { "dec" }
 BIG_KEY = { "big" }
