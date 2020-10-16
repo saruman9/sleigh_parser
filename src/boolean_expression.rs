@@ -85,7 +85,8 @@ pub fn parse_expr_defined(
     definitions: &Definitions,
 ) -> Result<bool, Box<dyn Error>> {
     dbg!(&pair.as_rule());
-    unimplemented!()
+    let identifier_pair = pair.into_inner();
+    Ok(definitions.contains_key(identifier_pair.as_str()))
 }
 
 pub fn parse_expr_term(

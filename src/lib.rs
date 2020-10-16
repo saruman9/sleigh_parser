@@ -11,16 +11,18 @@ mod tests {
     use crate::boolean_expression::{parse_boolean_expression, parse_expr_paren};
     use std::collections::HashMap;
     #[test]
-    fn boolean_expression() {
+    fn first() {
         let input = r#"(SH_VERSION == "2") || (SH_VERSION == "2A")"#;
         let mut definitions = HashMap::new();
         definitions.insert("SH_VERSION".to_string(), "2".to_string());
-        parse_boolean_expression(input, &definitions).unwrap();
+        dbg!(parse_boolean_expression(input, &definitions).unwrap());
     }
 
-    // #[test]
-    // fn expr_paren() {
-    //     let input = "(TEST)";
-    //     parse_expr_paren(input, &Default::default()).unwrap();
-    // }
+    #[test]
+    fn second() {
+        let input = "defined(dsPIC24F) || defined(dsPIC33E) && defined(dsPIC33C)";
+        let mut definitions = HashMap::new();
+        definitions.insert("dsPIC24F".to_string(), Default::default());
+        dbg!(parse_boolean_expression(input, &definitions).unwrap());
+    }
 }
