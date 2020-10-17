@@ -8,7 +8,7 @@ pub struct SleighParser;
 
 #[cfg(test)]
 mod tests {
-    use crate::boolean_expression::{parse_boolean_expression, parse_expr_paren};
+    use crate::boolean_expression::parse_boolean_expression;
     use std::collections::HashMap;
     #[test]
     fn first() {
@@ -20,7 +20,7 @@ mod tests {
 
     #[test]
     fn second() {
-        let input = "defined(dsPIC24F) || defined(dsPIC33E) && defined(dsPIC33C)";
+        let input = "(defined(dsPIC24F) || defined(dsPIC33E)) && defined(dsPIC33C)";
         let mut definitions = HashMap::new();
         definitions.insert("dsPIC24F".to_string(), Default::default());
         dbg!(parse_boolean_expression(input, &definitions).unwrap());

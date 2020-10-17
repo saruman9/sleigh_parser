@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 
 use pest::iterators::Pair;
+use pest::prec_climber::{Assoc, Operator, PrecClimber};
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -15,28 +16,46 @@ pub fn parse_boolean_expression(
     input: &str,
     definitions: &Definitions,
 ) -> Result<bool, Box<dyn Error>> {
-    let mut expr =
-        BooleanExpressionParser::parse(Rule::boolean_expression, input).or(Err("Parser"))?;
-    parse_expr(expr.next().unwrap(), definitions)
+    let mut expr = BooleanExpressionParser::parse(Rule::boolean_expression, input)
+        .or(Err("Parser"))
+        .unwrap();
+    Ok(parse_expr(expr.next().unwrap(), definitions))
 }
 
-pub fn parse_expr(pair: Pair<Rule>, definitions: &Definitions) -> Result<bool, Box<dyn Error>> {
+pub fn parse_expr(pair: Pair<Rule>, definitions: &Definitions) -> bool {
     dbg!(&pair.as_rule());
-    let mut inner = pair.into_inner();
-    let mut l = parse_boolean_clause(inner.next().unwrap(), definitions)?;
-    let mut op = "";
-    for pair in inner {
-        match pair.as_rule() {
-            Rule::bool_op => op = pair.as_str(),
-            Rule::boolean_clause => {
-                let r = parse_boolean_clause(pair, definitions)?;
-                l = parse_bool_op(l, op, r);
-            }
-            Rule::EOI => return Ok(l),
-            _ => unreachable!(pair),
-        };
+    let climber = PrecClimber::new(vec![
+        Operator::new(Rule::OR_OP, Assoc::Left),
+        Operator::new(Rule::XOR_OP, Assoc::Left),
+        Operator::new(Rule::AND_OP, Assoc::Left),
+    ]);
+    consume(pair, &climber, definitions)
+}
+
+pub fn consume(
+    pair: Pair<Rule>,
+    climber: &PrecClimber<Rule>,
+    definitions: &Definitions,
+) -> bool {
+    dbg!(&pair.as_rule());
+
+    let primary = |pair| consume(pair, climber, definitions);
+    let infix = |l: bool, op: Pair<Rule>, r: bool| {
+        dbg!(op.as_rule());
+        match op.as_rule() {
+            Rule::OR_OP => l || r,
+            Rule::XOR_OP => l ^ r,
+            Rule::AND_OP => l && r,
+            _ => unreachable!(op),
+        }
+    };
+
+    match pair.as_rule() {
+        Rule::expr => climber.climb(pair.into_inner(), primary, infix),
+        Rule::boolean_clause => parse_boolean_clause(pair, definitions).unwrap(),
+        // Rule::EOI =>
+        _ => unreachable!(pair),
     }
-    Ok(l)
 }
 
 pub fn parse_boolean_clause(
@@ -47,7 +66,7 @@ pub fn parse_boolean_clause(
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
         Rule::expr_not => parse_expr_not(pair, definitions),
-        Rule::expr_paren => parse_expr_paren(pair, definitions),
+        Rule::expr_paren => Ok(parse_expr_paren(pair, definitions)),
         Rule::expr_eq => parse_expr_eq(pair, definitions),
         Rule::expr_defined => parse_expr_defined(pair, definitions),
         _ => unreachable!(pair),
@@ -56,13 +75,13 @@ pub fn parse_boolean_clause(
 
 pub fn parse_expr_not(pair: Pair<Rule>, definitions: &Definitions) -> Result<bool, Box<dyn Error>> {
     dbg!(&pair.as_rule());
-    parse_expr_paren(pair.into_inner().next().unwrap(), definitions).map(|b| !b)
+    Ok(!parse_expr_paren(
+        pair.into_inner().next().unwrap(),
+        definitions,
+    ))
 }
 
-pub fn parse_expr_paren(
-    pair: Pair<Rule>,
-    definitions: &Definitions,
-) -> Result<bool, Box<dyn Error>> {
+pub fn parse_expr_paren(pair: Pair<Rule>, definitions: &Definitions) -> bool {
     dbg!(&pair.as_rule());
     parse_expr(pair.into_inner().next().unwrap(), definitions)
 }
@@ -102,15 +121,5 @@ pub fn parse_expr_term(
         }
         Rule::STRING => Ok(dbg!(pair.as_str().to_string())),
         _ => unreachable!(pair),
-    }
-}
-
-pub fn parse_bool_op(l: bool, op: &str, r: bool) -> bool {
-    dbg!(l, op, r);
-    match op {
-        "||" => l || r,
-        "^^" => l ^ r,
-        "&&" => l && r,
-        _ => unreachable!(op),
     }
 }
