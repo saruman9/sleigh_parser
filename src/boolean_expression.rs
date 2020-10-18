@@ -16,14 +16,12 @@ pub fn parse_boolean_expression(
     input: &str,
     definitions: &Definitions,
 ) -> Result<bool, Box<dyn Error>> {
-    let mut expr = BooleanExpressionParser::parse(Rule::boolean_expression, input)
-        .or(Err("Parser"))
-        .unwrap();
+    let mut expr =
+        BooleanExpressionParser::parse(Rule::boolean_expression, input).or(Err("Parser"))?;
     Ok(parse_expr(expr.next().unwrap(), definitions))
 }
 
 pub fn parse_expr(pair: Pair<Rule>, definitions: &Definitions) -> bool {
-    dbg!(&pair.as_rule());
     let climber = PrecClimber::new(vec![
         Operator::new(Rule::OR_OP, Assoc::Left),
         Operator::new(Rule::XOR_OP, Assoc::Left),
@@ -32,28 +30,18 @@ pub fn parse_expr(pair: Pair<Rule>, definitions: &Definitions) -> bool {
     consume(pair, &climber, definitions)
 }
 
-pub fn consume(
-    pair: Pair<Rule>,
-    climber: &PrecClimber<Rule>,
-    definitions: &Definitions,
-) -> bool {
-    dbg!(&pair.as_rule());
-
+pub fn consume(pair: Pair<Rule>, climber: &PrecClimber<Rule>, definitions: &Definitions) -> bool {
     let primary = |pair| consume(pair, climber, definitions);
-    let infix = |l: bool, op: Pair<Rule>, r: bool| {
-        dbg!(op.as_rule());
-        match op.as_rule() {
-            Rule::OR_OP => l || r,
-            Rule::XOR_OP => l ^ r,
-            Rule::AND_OP => l && r,
-            _ => unreachable!(op),
-        }
+    let infix = |l: bool, op: Pair<Rule>, r: bool| match op.as_rule() {
+        Rule::OR_OP => l || r,
+        Rule::XOR_OP => l ^ r,
+        Rule::AND_OP => l && r,
+        _ => unreachable!(op),
     };
 
     match pair.as_rule() {
         Rule::expr => climber.climb(pair.into_inner(), primary, infix),
         Rule::boolean_clause => parse_boolean_clause(pair, definitions).unwrap(),
-        // Rule::EOI =>
         _ => unreachable!(pair),
     }
 }
@@ -62,7 +50,6 @@ pub fn parse_boolean_clause(
     pair: Pair<Rule>,
     definitions: &Definitions,
 ) -> Result<bool, Box<dyn Error>> {
-    dbg!(&pair.as_rule());
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
         Rule::expr_not => parse_expr_not(pair, definitions),
@@ -74,7 +61,6 @@ pub fn parse_boolean_clause(
 }
 
 pub fn parse_expr_not(pair: Pair<Rule>, definitions: &Definitions) -> Result<bool, Box<dyn Error>> {
-    dbg!(&pair.as_rule());
     Ok(!parse_expr_paren(
         pair.into_inner().next().unwrap(),
         definitions,
@@ -82,12 +68,10 @@ pub fn parse_expr_not(pair: Pair<Rule>, definitions: &Definitions) -> Result<boo
 }
 
 pub fn parse_expr_paren(pair: Pair<Rule>, definitions: &Definitions) -> bool {
-    dbg!(&pair.as_rule());
     parse_expr(pair.into_inner().next().unwrap(), definitions)
 }
 
 pub fn parse_expr_eq(pair: Pair<Rule>, definitions: &Definitions) -> Result<bool, Box<dyn Error>> {
-    dbg!(&pair.as_rule());
     let mut inner = pair.into_inner();
     let l = parse_expr_term(inner.next().unwrap(), definitions)?;
     let comp_op = inner.next().unwrap();
@@ -103,7 +87,6 @@ pub fn parse_expr_defined(
     pair: Pair<Rule>,
     definitions: &Definitions,
 ) -> Result<bool, Box<dyn Error>> {
-    dbg!(&pair.as_rule());
     let identifier_pair = pair.into_inner();
     Ok(definitions.contains_key(identifier_pair.as_str()))
 }
@@ -113,13 +96,12 @@ pub fn parse_expr_term(
     definitions: &Definitions,
 ) -> Result<String, Box<dyn Error>> {
     let pair = pair.into_inner().next().unwrap();
-    dbg!(pair.as_rule());
     match pair.as_rule() {
         Rule::IDENTIFIER => {
             let key = pair.as_str();
-            Ok(dbg!(definitions.get(key).cloned().unwrap_or_default()))
+            Ok(definitions.get(key).cloned().unwrap_or_default())
         }
-        Rule::STRING => Ok(dbg!(pair.as_str().to_string())),
+        Rule::STRING => Ok(pair.as_str().to_string()),
         _ => unreachable!(pair),
     }
 }
