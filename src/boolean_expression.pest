@@ -16,8 +16,9 @@ boolean_expression = _{ SOI ~ expr ~ EOI }
 
 IDENTIFIER = { (ASCII_ALPHANUMERIC | "_" )+ }
 QSTRING = _{ "\"" ~ STRING ~ "\"" }
-STRING = @{ (ESCAPE | (!"\\" ~ !"\"" ~ ANY))* }
-ESCAPE = { "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "'" | "\\")
+STRING = @{ (ESCAPE | !("\\" | "\"") ~ ANY)* }
+ESCAPE = {
+      "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "'" | "\\")
     | UNICODE_ESCAPE
     | OCTAL_ESCAPE
     }
