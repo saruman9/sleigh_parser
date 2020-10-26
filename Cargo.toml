@@ -3,7 +3,13 @@ name = "sleigh_parser"
 version = "0.1.0"
 authors = ["saruman9 <rum.274.4@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
 pest = "2.1.3"
 pest_derive = "2.1.0"
+lalrpop-util = "0.19"
+regex = "1"
+
+[build-dependencies]
+lalrpop = { version = "0.19", features = ["lexer"] }
