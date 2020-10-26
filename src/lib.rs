@@ -9,6 +9,7 @@ pub mod errors;
 pub struct SleighParser;
 
 lalrpop_mod!(pub boolean_expression_lalr);
+lalrpop_mod!(pub sleigh);
 
 #[cfg(test)]
 mod tests {

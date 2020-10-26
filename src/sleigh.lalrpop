@@ -1,0 +1,128 @@
+use lalrpop_util::ParseError;
+
+use crate::errors::Error;
+
+grammar();
+
+extern {
+    type Error = Error;
+}
+
+pub spec: () = {
+
+};
+
+cpp_comment: () = {
+    CPPCOMMENT =>? Err(
+        ParseError::User {
+            error: Error::Parsing("Detected CPP comment".to_string()),
+        }
+    ),
+};
+
+match {
+    // Preprocessor-generated directives
+    r"\x08[^\n\x08]*\x08" => PP_POSITION,
+
+    // IDs, Literals
+    r"[[:alpha:]_.][[:alnum:]_.]*" => IDENTIFIER,
+    r#""[^\\"]*""# => QSTRING,
+    r"0x[[:xdigit:]]+" => HEX_INT,
+    r"0b[01]+" => BIN_INT,
+
+    // Ignored things, Errors
+    r"[ \t\r\n]+" => { }, // Whitespaces
+    r"#[^\n\r]*" => { }, // Commentaries
+    "//" => CPPCOMMENT, // C++ commentaries
+
+    // Reserved words and keywords
+    "with" => RES_WITH,
+
+    "alignment" => KEY_ALIGNMENT,
+    "attach" => KEY_ATTACH,
+    "big" => KEY_BIG,
+    "bitrange" => KEY_BITRANGE,
+    "build" => KEY_BUILD,
+    "call" => KEY_CALL,
+    "context" => KEY_CONTEXT,
+    "crossbuild" => KEY_CROSSBUILD,
+    "dec" => KEY_DEC,
+    "default" => KEY_DEFAULT,
+    "define" => KEY_DEFINE,
+    "endian" => KEY_ENDIAN,
+    "export" => KEY_EXPORT,
+    "goto" => KEY_GOTO,
+    "hex" => KEY_HEX,
+    "little" => KEY_LITTLE,
+    "local" => KEY_LOCAL,
+    "macro" => KEY_MACRO,
+    "names" => KEY_NAMES,
+    "noflow" => KEY_NOFLOW,
+    "offset" => KEY_OFFSET,
+    "pcodeop" => KEY_PCODEOP,
+    "return" => KEY_RETURN,
+    "signed" => KEY_SIGNED,
+    "size" => KEY_SIZE,
+    "space" => KEY_SPACE,
+    "token" => KEY_TOKEN,
+    "type" => KEY_TYPE,
+    "unimpl" => KEY_UNIMPL,
+    "values" => KEY_VALUES,
+    "variables" => KEY_VARIABLES,
+    "wordsize" => KEY_WORDSIZE,
+
+    // Grouping, block, and sectioning symbols
+    "{" => LBRACE,
+    "}" => RBRACE,
+    "[" => LBRACKET,
+    "]" => RBRACKET,
+    "(" => LPAREN,
+    ")" => RPAREN,
+
+    // Miscellaneous
+    "..." => ELLIPSIS,
+    "_" => UNDERSCORE,
+    ":" => COLON,
+    "," => COMMA,
+    "!" => EXCLAIM,
+    "~" => TILDE,
+    ";" => SEMI,
+
+    // ----------
+    // Operators:
+    // ----------
+
+    "=" => ASSIGN,
+
+    // Comparisons
+    "==" => EQUAL,
+    "!=" => NOTEQUAL,
+    "<" => LESS,
+    ">" => GREAT,
+    "<=" => LESSEQUAL,
+    ">=" => GREATEQUAL,
+
+    // Boolean and bitwise logic operations
+    "||" => BOOL_OR,
+    "^^" => BOOL_XOR,
+    "&&" => BOOL_AND,
+    "|" => PIPE,
+    "^" => CARET,
+    "&" => AMPERSAND,
+
+    // Shifting operations
+    "<<" => LEFT,
+    ">>" => RIGHT,
+
+    // Arithmetic operations
+    "+" => PLUS,
+    "-" => MINUS,
+    "*" => ASTERISK,
+    "/" => SLASH,
+    "%" => PERCENT,
+
+    // Explicitly named boolean operations
+    "$or" => SPEC_OR,
+    "$and" => SPEC_AND,
+    "$xor" => SPEC_XOR,
+}
