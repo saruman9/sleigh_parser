@@ -8,8 +8,28 @@ extern {
     type Error = Error;
 }
 
-pub spec: () = {
+Many<T>: Vec<T> = {
+    <v:(<T>)*> => v,
+};
 
+pub root: () = {
+    // endiandef Many<definition>,
+    // endiandef Many<constructorlike>,
+};
+
+endiandef: () = {
+    KEY_DEFINE KEY_ENDIAN ASSIGN endian SEMI,
+};
+
+endian: () = {
+    KEY_BIG,
+    KEY_LITTLE,
+};
+
+definition: () = {
+};
+
+constructorlike: () = {
 };
 
 cpp_comment: () = {
