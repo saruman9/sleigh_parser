@@ -1,124 +1,121 @@
 sleigh = _{ SOI ~ stmt+ ~ EOI }
 
-stmt = _{ expr }
-
-expr = { preprocess | preprocess_macro | spec }
-
-preprocess = { "@" ~ preprocess_type }
-  preprocess_type = _{
-    preprocess_include
-    | preprocess_define
-    | preprocess_undef
-    | preprocess_ifdef
-    | preprocess_ifndef
-    | preprocess_if
-    | preprocess_elif
-    | preprocess_endif
-    | preprocess_else
-  }
-  preprocess_include = { "include" ~ include_string }
-    include_string = _{ "\"" ~ (preprocess_macro | preprocess_include_file)+ ~ "\"" }
-      preprocess_include_file = @{ (!"\"" ~ !"$" ~ ANY)+ }
-  preprocess_define = { DEFINE_KEY ~ identifier_name ~ (quoted_string | identifier_name) }
-  preprocess_undef = { "undef" ~ identifier_name }
-  preprocess_ifdef = { "ifdef" ~ identifier_name }
-  preprocess_ifndef = { "ifndef" ~ identifier_name }
-  preprocess_if = { "if" ~  prep_if_value }
-    prep_if_value = _{ boolean_clause ~ (boolop ~ boolean_clause)* }
-      boolean_clause = {
-        "(" ~ prep_if_value ~ ")"
-        | ((defined_expr) | (operand ~ comp ~ operand))
-      }
-        operand = { (quoted_string | identifier_name) }
-        comp = { "==" | "!=" }
-        defined_expr = { "defined" ~ "(" ~ identifier_name ~ ")" }
-      boolop = { "&&" | "||" | "^^" }
-  preprocess_elif = { "elif" ~ prep_if_value }
-  preprocess_endif = { "endif" }
-  preprocess_else = { "else" }
-
-preprocess_macro = ${ "$(" ~ identifier_name ~ ")" }
-
-spec = {
-  endiandef
-  | aligndef
-  | definition
-  | constructorlike
-}
-
-definition = { (
-    tokendef
-    | contextdef
-    // | spacedef
-    // | varnodedef
-    // | bitrangedef
-    // | pcodeopdef
-    // | valueattach
-    // | nameattach
-    // | varattach
-  )
-}
-
-constructorlike = { (
-    "macro"
-    // constructor
-    // | macrodef
-    // | withblock
-  )
-}
-
-endiandef = { DEFINE_KEY ~ "endian" ~ "=" ~ endian_value ~ ";" }
-  endian_value = { BIG_KEY | LITTLE_KEY }
-
-aligndef = { DEFINE_KEY ~ "alignment" ~ "=" ~ INTEGER ~ ";" }
-
-tokendef = { tokenprop ~ ";" }
-  tokenprop = { tokenprop_expr ~ fielddef* }
-    tokenprop_expr = _{
-      DEFINE_KEY ~ TOKEN_KEY ~ (SYMBOL | quoted_string) ~ "(" ~ INTEGER ~ ")"
-      | DEFINE_KEY ~ TOKEN_KEY ~ SYMBOL
-    }
-    fielddef = { fielddef_expr ~ fielddef_type* }
-      fielddef_expr = _{ (SYMBOL | quoted_string) ~ "=" ~ "(" ~ INTEGER ~ "," ~ INTEGER ~ ")" }
-      fielddef_type = {
-        SIGNED_KEY
-        | HEX_KEY
-        | DEC_KEY
-      }
-
-contextdef = { contextprop ~ ";" }
-  contextprop = { contextprop_expr ~ contextfielddef* }
-    contextprop_expr = _{ DEFINE_KEY ~ CONTEXT_KEY ~ SYMBOL }
-    contextfielddef = { contextfielddef_expr ~ contextfielddef_type* }
-      contextfielddef_expr = _{
-        (SYMBOL | quoted_string) ~ "=" ~ "(" ~ INTEGER ~ "," ~ INTEGER ~ ")"
-        | SYMBOL ~ "=" ~ "(" ~ INTEGER ~ "," ~ INTEGER ~ ")"
-      }
-      contextfielddef_type = {
-        SIGNED_KEY
-        | NOFLOW_KEY
-        | HEX_KEY
-        | DEC_KEY
-      }
-
-
-DEFINE_KEY = _{ "define" }
-TOKEN_KEY = _{ "token" }
-CONTEXT_KEY = _{ "context" }
-SIGNED_KEY = { "signed" }
-NOFLOW_KEY = { "noflow" }
-HEX_KEY = { "hex" }
-DEC_KEY = { "dec" }
-BIG_KEY = { "big" }
-LITTLE_KEY = { "little" }
-identifier_name = @{ (ASCII_ALPHANUMERIC | "_")+ }
-quoted_string = _{"\"" ~ STRING ~ "\""}
-STRING = @{ (!"\"" ~ ANY)* }
-SYMBOL = @{ (ASCII_ALPHA | "_" | ".") ~ (ASCII_ALPHANUMERIC | "_" | ".")* }
-integer_dec = _{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
-integer_hex = _{ "0x" ~ ASCII_HEX_DIGIT+ }
-integer_bin = _{ "0b" ~ ASCII_BIN_DIGIT+ }
-INTEGER = @{ integer_hex | integer_bin | integer_dec }
-
+// Ignored things, Errors
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 WHITESPACE = _{ "\r" | " " | "\t" | "\n" }
+
+stmt = _{ pp_position | qstring }
+
+// Preprocessor-generated directives
+pp_position = ${ PP_ESCAPE ~ PP_FILE ~ "###" ~ PP_LINE ~ PP_ESCAPE }
+PP_FILE = @{ (!(NEWLINE | PP_ESCAPE | "###") ~ ANY)* }
+PP_LINE = @{ ASCII_DIGIT+ }
+PP_ESCAPE = _{ "\x08" }
+
+// Reserved words and keywords
+RES_WITH = { "with" }
+
+KEY_ALIGNMENT = { "alignment" }
+KEY_ATTACH = { "attach" }
+KEY_BIG = { "big" }
+KEY_BITRANGE = { "bitrange" }
+KEY_BUILD = { "build" }
+KEY_CALL = { "call" }
+KEY_CONTEXT = { "context" }
+KEY_CROSSBUILD = { "crossbuild" }
+KEY_DEC = { "dec" }
+KEY_DEFAULT = { "default" }
+KEY_DEFINE = { "define" }
+KEY_ENDIAN = { "endian" }
+KEY_EXPORT = { "export" }
+KEY_GOTO = { "goto" }
+KEY_HEX = { "hex" }
+KEY_LITTLE = { "little" }
+KEY_LOCAL = { "local" }
+KEY_MACRO = { "macro" }
+KEY_NAMES = { "names" }
+KEY_NOFLOW = { "noflow" }
+KEY_OFFSET = { "offset" }
+KEY_PCODEOP = { "pcodeop" }
+KEY_RETURN = { "return" }
+KEY_SIGNED = { "signed" }
+KEY_SIZE = { "size" }
+KEY_SPACE = { "space" }
+KEY_TOKEN = { "token" }
+KEY_TYPE = { "type" }
+KEY_UNIMPL = { "unimpl" }
+KEY_VALUES = { "values" }
+KEY_VARIABLES = { "variables" }
+KEY_WORDSIZE = { "wordsize" }
+
+// Grouping, block, and sectioning symbols
+LBRACE = { "{" }
+RBRACE = { "}" }
+LBRACKET = { "[" }
+RBRACKET = { "]" }
+LPAREN = { "(" }
+RPAREN = { ")" }
+
+// Miscellaneous
+ELLIPSIS = { "..." }
+UNDERSCORE = { "_" }
+COLON = { ":" }
+COMMA = { "," }
+EXCLAIM = { "!" }
+TILDE = { "~" }
+SEMI = { ";" }
+
+// ----------
+// Operators:
+// ----------
+
+ASSIGN = { "=" }
+
+// Comparisons
+EQUAL = { "==" }
+NOTEQUAL = { "!=" }
+LESS = { "<" }
+GREAT = { ">" }
+LESSEQUAL = { "<=" }
+GREATEQUAL = { ">=" }
+
+// Boolean and bitwise logic operations
+BOOL_OR = { "||" }
+BOOL_XOR = { "^^" }
+BOOL_AND = { "&&" }
+PIPE = { "|" }
+CARET = { "^" }
+AMPERSAND = { "&" }
+
+// Shifting operations
+LEFT = { "<<" }
+RIGHT = { ">>" }
+
+// Arithmetic operations
+PLUS = { "+" }
+MINUS = { "-" }
+ASTERISK = { "*" }
+SLASH = { "/" }
+PERCENT = { "%" }
+
+// Explicitly named boolean operations
+SPEC_OR = { "$or" }
+SPEC_AND = { "$and" }
+SPEC_XOR = { "$xor" }
+
+// IDs, Literals
+IDENTIFIER = @{ ALPHA_UP ~ (ALPHA_UP | ASCII_DIGIT )* }
+ALPHA_UP = { ASCII_ALPHA | "_" | "." }
+qstring = ${ "\"" ~ STRING ~ "\"" }
+STRING = @{ (ESCAPE | STRING_TEXT)* }
+STRING_TEXT = { !("\\" | "\"") ~ ANY }
+ESCAPE = {
+    "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "'" | "\\")
+  | UNICODE_ESCAPE
+  | OCTAL_ESCAPE
+}
+UNICODE_ESCAPE = { "\\" ~ "u" ~ ASCII_HEX_DIGIT{4} }
+OCTAL_ESCAPE = { "\\" ~ ('0'..'3')? ~ ASCII_OCT_DIGIT{1,2} }
+DEC_INT = @{ ASCII_DIGIT+ }
+HEX_INT = @{ "0x" ~ ASCII_HEX_DIGIT+ }
+BIN_INT = @{ "0b" ~ ASCII_BIN_DIGIT+ }
