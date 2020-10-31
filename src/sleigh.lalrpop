@@ -12,25 +12,42 @@ Many<T>: Vec<T> = {
     <v:(<T>)*> => v,
 };
 
-pub root: () = {
-    // endiandef Many<definition>,
-    // endiandef Many<constructorlike>,
+pub spec = {
+    endiandef definition,
+    endiandef constructorlike,
 };
 
-endiandef: () = {
+endiandef = {
     KEY_DEFINE KEY_ENDIAN ASSIGN endian SEMI,
-};
+}
 
-endian: () = {
+endian = {
     KEY_BIG,
     KEY_LITTLE,
-};
+}
 
-definition: () = {
-};
+definition = {
+    aligndef SEMI,
+    // tokendef SEMI,
+    // contextdef SEMI,
+    // spacedef SEMI,
+    // varnodedef SEMI,
+    // bitrangedef SEMI,
+    // pcodeopdef SEMI,
+    // valueattach SEMI,
+    // nameattach SEMI,
+    // varattach SEMI,
+}
 
-constructorlike: () = {
-};
+aligndef = {
+    KEY_DEFINE KEY_ALIGNMENT ASSIGN integer,
+}
+
+constructorlike = {
+    macrodef,
+    // withblock,
+    // constructor,
+}
 
 cpp_comment: () = {
     CPPCOMMENT =>? Err(
@@ -40,6 +57,12 @@ cpp_comment: () = {
     ),
 };
 
+integer = {
+    HEX_INT,
+    DEC_INT,
+    BIN_INT,
+}
+
 match {
     // Preprocessor-generated directives
     r"\x08[^\n\x08]*\x08" => PP_POSITION,
@@ -47,6 +70,7 @@ match {
     // IDs, Literals
     r"[[:alpha:]_.][[:alnum:]_.]*" => IDENTIFIER,
     r#""[^\\"]*""# => QSTRING,
+    r"[[:digit:]]+" => DEC_INT,
     r"0x[[:xdigit:]]+" => HEX_INT,
     r"0b[01]+" => BIN_INT,
 
