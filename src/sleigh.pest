@@ -1,118 +1,206 @@
-sleigh = _{ SOI ~ stmt+ ~ EOI }
+sleigh = _{ SOI ~ spec ~ EOI }
 
 // Ignored things, Errors
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 WHITESPACE = _{ "\r" | " " | "\t" | "\n" }
 
-stmt = _{ pp_position | qstring }
+spec = { pp_position* ~ endiandef ~ ( definition | constructorlike | pp_position )* }
+endiandef = { KEY_DEFINE ~ KEY_ENDIAN ~ ASSIGN ~ endian ~ SEMI }
+endian = { KEY_BIG | KEY_LITTLE }
+definition = {
+      (
+          aligndef
+        // | tokendef
+        // | contextdef
+        | spacedef
+        | varnodedef
+        // | bitrangedef
+        // | pcodeopdef
+        // | valueattach
+        // | nameattach
+        // | varattach
+    ) ~ SEMI
+}
+aligndef = { KEY_DEFINE ~ KEY_ALIGNMENT ~ ASSIGN ~ integer }
+spacedef = { KEY_DEFINE ~ KEY_SPACE ~ identifier ~ spacemods }
+spacemods = { spacemod* }
+spacemod = {
+      typemod
+    | sizemod
+    | wordsizemod
+    | KEY_DEFAULT
+}
+typemod = { KEY_TYPE ~ ASSIGN ~ type_ }
+type_ = _{ identifier }
+sizemod = { KEY_SIZE ~ ASSIGN ~ integer }
+wordsizemod = { KEY_WORDSIZE ~ ASSIGN ~ integer }
+
+varnodedef = { KEY_DEFINE ~ identifier ~ KEY_OFFSET
+      ~ ASSIGN ~ integer ~ KEY_SIZE ~ ASSIGN ~ integer
+      ~ identifierlist }
+
+identifierlist = {
+      LBRACKET ~ id_or_wild+ ~ RBRACKET
+    | id_or_wild
+}
+
+constructorlike = {
+      macrodef
+    // | withblock
+    // | constructor
+}
+macrodef = { KEY_MACRO ~ identifier ~ LPAREN ~ arguments ~ RPAREN ~ semanticbody }
+arguments = { oplist? }
+oplist = { identifier ~ (COMMA ~ identifier)* }
+semanticbody = { "semanticbody" }
+
+id_or_wild = { identifier | wildcard }
+wildcard = { UNDERSCORE }
+identifier = _{ strict_id | key_as_id }
+key_as_id = {
+      KEY_ALIGNMENT
+    | KEY_ATTACH
+    | KEY_BIG
+    | KEY_BITRANGE
+    | KEY_BUILD
+    | KEY_CALL
+    | KEY_CONTEXT
+    | KEY_CROSSBUILD
+    | KEY_DEC
+    | KEY_DEFAULT
+    | KEY_DEFINE
+    | KEY_ENDIAN
+    | KEY_EXPORT
+    | KEY_GOTO
+    | KEY_HEX
+    | KEY_LITTLE
+    | KEY_LOCAL
+    | KEY_MACRO
+    | KEY_NAMES
+    | KEY_NOFLOW
+    | KEY_OFFSET
+    | KEY_PCODEOP
+    | KEY_RETURN
+    | KEY_SIGNED
+    | KEY_SIZE
+    | KEY_SPACE
+    | KEY_TOKEN
+    | KEY_TYPE
+    | KEY_UNIMPL
+    | KEY_VALUES
+    | KEY_VARIABLES
+    | KEY_WORDSIZE
+}
+strict_id = _{ IDENTIFIER }
+integer = _{ HEX_INT | DEC_INT | BIN_INT }
 
 // Preprocessor-generated directives
 pp_position = ${ PP_ESCAPE ~ PP_FILE ~ "###" ~ PP_LINE ~ PP_ESCAPE }
-PP_FILE = @{ (!(NEWLINE | PP_ESCAPE | "###") ~ ANY)* }
-PP_LINE = @{ ASCII_DIGIT+ }
+PP_FILE = { (!(NEWLINE | PP_ESCAPE | "###") ~ ANY)* }
+PP_LINE = { ASCII_DIGIT+ }
 PP_ESCAPE = _{ "\x08" }
 
 // Reserved words and keywords
-RES_WITH = { "with" }
+RES_WITH = _{ "with" }
 
-KEY_ALIGNMENT = { "alignment" }
-KEY_ATTACH = { "attach" }
+KEY_ALIGNMENT = _{ "alignment" }
+KEY_ATTACH = _{ "attach" }
 KEY_BIG = { "big" }
-KEY_BITRANGE = { "bitrange" }
-KEY_BUILD = { "build" }
-KEY_CALL = { "call" }
-KEY_CONTEXT = { "context" }
-KEY_CROSSBUILD = { "crossbuild" }
-KEY_DEC = { "dec" }
+KEY_BITRANGE = _{ "bitrange" }
+KEY_BUILD = _{ "build" }
+KEY_CALL = _{ "call" }
+KEY_CONTEXT = _{ "context" }
+KEY_CROSSBUILD = _{ "crossbuild" }
+KEY_DEC = _{ "dec" }
 KEY_DEFAULT = { "default" }
-KEY_DEFINE = { "define" }
-KEY_ENDIAN = { "endian" }
-KEY_EXPORT = { "export" }
-KEY_GOTO = { "goto" }
-KEY_HEX = { "hex" }
+KEY_DEFINE = _{ "define" }
+KEY_ENDIAN = _{ "endian" }
+KEY_EXPORT = _{ "export" }
+KEY_GOTO = _{ "goto" }
+KEY_HEX = _{ "hex" }
 KEY_LITTLE = { "little" }
-KEY_LOCAL = { "local" }
-KEY_MACRO = { "macro" }
-KEY_NAMES = { "names" }
-KEY_NOFLOW = { "noflow" }
-KEY_OFFSET = { "offset" }
-KEY_PCODEOP = { "pcodeop" }
-KEY_RETURN = { "return" }
-KEY_SIGNED = { "signed" }
-KEY_SIZE = { "size" }
-KEY_SPACE = { "space" }
-KEY_TOKEN = { "token" }
-KEY_TYPE = { "type" }
-KEY_UNIMPL = { "unimpl" }
-KEY_VALUES = { "values" }
-KEY_VARIABLES = { "variables" }
-KEY_WORDSIZE = { "wordsize" }
+KEY_LOCAL = _{ "local" }
+KEY_MACRO = _{ "macro" }
+KEY_NAMES = _{ "names" }
+KEY_NOFLOW = _{ "noflow" }
+KEY_OFFSET = _{ "offset" }
+KEY_PCODEOP = _{ "pcodeop" }
+KEY_RETURN = _{ "return" }
+KEY_SIGNED = _{ "signed" }
+KEY_SIZE = _{ "size" }
+KEY_SPACE = _{ "space" }
+KEY_TOKEN = _{ "token" }
+KEY_TYPE = _{ "type" }
+KEY_UNIMPL = _{ "unimpl" }
+KEY_VALUES = _{ "values" }
+KEY_VARIABLES = _{ "variables" }
+KEY_WORDSIZE = _{ "wordsize" }
 
 // Grouping, block, and sectioning symbols
-LBRACE = { "{" }
-RBRACE = { "}" }
-LBRACKET = { "[" }
-RBRACKET = { "]" }
-LPAREN = { "(" }
-RPAREN = { ")" }
+LBRACE = _{ "_{" }
+RBRACE = _{ "}" }
+LBRACKET = _{ "[" }
+RBRACKET = _{ "]" }
+LPAREN = _{ "(" }
+RPAREN = _{ ")" }
 
 // Miscellaneous
-ELLIPSIS = { "..." }
-UNDERSCORE = { "_" }
-COLON = { ":" }
-COMMA = { "," }
-EXCLAIM = { "!" }
-TILDE = { "~" }
-SEMI = { ";" }
+ELLIPSIS = _{ "..." }
+UNDERSCORE = _{ "_" }
+COLON = _{ ":" }
+COMMA = _{ "," }
+EXCLAIM = _{ "!" }
+TILDE = _{ "~" }
+SEMI = _{ ";" }
 
 // ----------
 // Operators:
 // ----------
 
-ASSIGN = { "=" }
+ASSIGN = _{ "=" }
 
 // Comparisons
-EQUAL = { "==" }
-NOTEQUAL = { "!=" }
-LESS = { "<" }
-GREAT = { ">" }
-LESSEQUAL = { "<=" }
-GREATEQUAL = { ">=" }
+EQUAL = _{ "==" }
+NOTEQUAL = _{ "!=" }
+LESS = _{ "<" }
+GREAT = _{ ">" }
+LESSEQUAL = _{ "<=" }
+GREATEQUAL = _{ ">=" }
 
 // Boolean and bitwise logic operations
-BOOL_OR = { "||" }
-BOOL_XOR = { "^^" }
-BOOL_AND = { "&&" }
-PIPE = { "|" }
-CARET = { "^" }
-AMPERSAND = { "&" }
+BOOL_OR = _{ "||" }
+BOOL_XOR = _{ "^^" }
+BOOL_AND = _{ "&&" }
+PIPE = _{ "|" }
+CARET = _{ "^" }
+AMPERSAND = _{ "&" }
 
 // Shifting operations
-LEFT = { "<<" }
-RIGHT = { ">>" }
+LEFT = _{ "<<" }
+RIGHT = _{ ">>" }
 
 // Arithmetic operations
-PLUS = { "+" }
-MINUS = { "-" }
-ASTERISK = { "*" }
-SLASH = { "/" }
-PERCENT = { "%" }
+PLUS = _{ "+" }
+MINUS = _{ "-" }
+ASTERISK = _{ "*" }
+SLASH = _{ "/" }
+PERCENT = _{ "%" }
 
 // Explicitly named boolean operations
-SPEC_OR = { "$or" }
-SPEC_AND = { "$and" }
-SPEC_XOR = { "$xor" }
+SPEC_OR = _{ "$or" }
+SPEC_AND = _{ "$and" }
+SPEC_XOR = _{ "$xor" }
 
 // IDs, Literals
-IDENTIFIER = @{ ALPHA_UP ~ (ALPHA_UP | ASCII_DIGIT )* }
+IDENTIFIER = @{ !(UNDERSCORE ~ &(!IDENTIFIER | EOI)) ~ ALPHA_UP ~ (ALPHA_UP | ASCII_DIGIT )* }
 ALPHA_UP = { ASCII_ALPHA | "_" | "." }
 qstring = ${ "\"" ~ STRING ~ "\"" }
 STRING = @{ (ESCAPE | STRING_TEXT)* }
 STRING_TEXT = { !("\\" | "\"") ~ ANY }
 ESCAPE = {
-    "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "'" | "\\")
-  | UNICODE_ESCAPE
-  | OCTAL_ESCAPE
+      "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "'" | "\\")
+    | UNICODE_ESCAPE
+    | OCTAL_ESCAPE
 }
 UNICODE_ESCAPE = { "\\" ~ "u" ~ ASCII_HEX_DIGIT{4} }
 OCTAL_ESCAPE = { "\\" ~ ('0'..'3')? ~ ASCII_OCT_DIGIT{1,2} }
