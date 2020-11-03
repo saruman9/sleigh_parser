@@ -105,13 +105,162 @@ neginteger = {
 
 constructorlike = {
       macrodef
-    // | withblock
-    // | constructor
+    | withblock
+    | constructor
 }
 macrodef = { KEY_MACRO ~ identifier ~ LPAREN ~ arguments ~ RPAREN ~ semanticbody }
 arguments = { oplist? }
 oplist = { identifier ~ (COMMA ~ identifier)* }
 semanticbody = { "semanticbody" }
+
+withblock = { RES_WITH ~ id_or_nil ~ COLON ~ bitpat_or_nil ~ contextblock ~ LBRACE
+      ~ constructorlikelist ~ RBRACE
+}
+id_or_nil = { identifier? }
+bitpat_or_nil = { bitpattern? }
+constructorlikelist = { def_or_conslike* }
+def_or_conslike = {
+      definition
+    | constructorlike
+}
+
+constructor = { ctorstart ~ bitpattern ~ contextblock ~ ctorsemantic }
+ctorsemantic = {
+      semanticbody
+    | KEY_UNIMPL
+}
+bitpattern = { pequation }
+ctorstart = {
+      identifier ~ display
+    | display
+}
+display = { "display" }
+
+contextblock = { (LBRACKET ~ ctxstmts ~ RBRACKET)? }
+ctxstmts = { ctxstmt* }
+ctxstmt = { (ctxassign | pfuncall) ~ SEMI }
+ctxassign = { ctxlval ~ ASSIGN ~ pexpression }
+ctxlval = { identifier }
+pfuncall = { pexpression_apply }
+pequation = { pequation_or }
+pequation_or = { pequation_seq ~ (pequation_or_op ~ pequation_seq)* }
+pequation_or_op = { PIPE }
+pequation_seq = { pequation_and }
+pequation_seq_op = { SEMI }
+pequation_and = { pequation_ellipsis ~ (pequation_and_op ~ pequation_ellipsis)* }
+pequation_and_op = { AMPERSAND }
+pequation_ellipsis = {
+      ELLIPSIS ~ pequation_ellipsis_right
+    | pequation_ellipsis_right
+}
+pequation_ellipsis_right = {
+      (pequation_atomic ~ ELLIPSIS)
+      | pequation_atomic
+}
+pequation_atomic = {
+      constraint
+      | LPAREN ~ pequation ~ RPAREN
+}
+constraint = { identifier ~ (constraint_op ~ pexpression2)? }
+constraint_op = {
+      ASSIGN
+    | NOTEQUAL
+    | LESS
+    | LESSEQUAL
+    | GREAT
+    | GREATEQUAL
+}
+pexpression = { pexpression_or }
+pexpression_or = { pexpression_xor ~ (pexpression_or_op ~ pexpression_xor)* }
+pexpression_or_op = {
+      PIPE
+      | SPEC_OR
+}
+pexpression_xor = { pexpression_and ~ (pexpression_xor_op ~ pexpression_and)* }
+pexpression_xor_op = {
+      CARET
+      | SPEC_XOR
+}
+pexpression_and = { pexpression_shift ~ (pexpression_and_op ~ pexpression_shift)* }
+pexpression_and_op = {
+      AMPERSAND
+      | SPEC_AND
+}
+pexpression_shift = { pexpression_add ~ (pexpression_shift_op ~ pexpression_add)* }
+pexpression_shift_op = {
+      LEFT
+      | RIGHT
+}
+pexpression_add = { pexpression_mult ~ (pexpression_add_op ~ pexpression_mult)* }
+pexpression_add_op = {
+      PLUS
+      | MINUS
+}
+pexpression_mult = { pexpression_unary ~ (pexpression_mult_op ~ pexpression_unary)* }
+pexpression_mult_op = {
+      ASTERISK
+      | SLASH
+}
+pexpression_unary = {
+      pexpression_unary_op ~ pexpression_term
+      | pexpression_func
+}
+pexpression_unary_op = {
+      MINUS
+      | TILDE
+}
+pexpression_func = {
+      pexpression_apply
+      | pexpression_term
+}
+pexpression_apply = { identifier ~ pexpression_operands }
+pexpression_operands = { LPAREN ~ (pexpression ~ (COMMA ~ pexpression)*)? ~ RPAREN }
+pexpression_term = {
+      identifier
+    | integer
+    | LPAREN ~ pexpression ~ RPAREN
+}
+pexpression2 = { pexpression2_or }
+pexpression2_or = { pexpression2_xor ~ (pexpression2_or_op ~ pexpression2_xor)* }
+pexpression2_or_op = { SPEC_OR }
+pexpression2_xor = { pexpression2_and ~ (pexpression2_xor_op ~ pexpression2_and)* }
+pexpression2_xor_op = { SPEC_XOR }
+pexpression2_and = { pexpression2_shift ~ (pexpression2_and_op ~ pexpression2_shift)* }
+pexpression2_and_op = { SPEC_AND }
+pexpression2_shift = { pexpression2_add ~ (pexpression2_shift_op ~ pexpression2_add)* }
+pexpression2_shift_op = {
+      LEFT
+    | RIGHT
+}
+pexpression2_add = { pexpression2_mult ~ (pexpression2_add_op ~ pexpression2_mult)* }
+pexpression2_add_op = {
+      PLUS
+    | MINUS
+}
+pexpression2_mult = { pexpression2_unary ~ (pexpression2_mult_op ~ pexpression2_unary)* }
+pexpression2_mult_op = {
+      ASTERISK
+    | SLASH
+}
+pexpression2_unary = {
+      pexpression2_unary_op ~ pexpression2_term
+    |	pexpression2_func
+}
+pexpression2_unary_op = {
+      MINUS
+    | TILDE
+}
+pexpression2_func = {
+      pexpression2_apply
+    |	pexpression2_term
+}
+pexpression2_apply = { identifier ~ pexpression2_operands }
+pexpression2_operands = { LPAREN ~ (pexpression2 ~ (COMMA ~ pexpression2)*)? ~ RPAREN }
+pexpression2_term = {
+      identifier
+    |	integer
+    |	LPAREN ~ pexpression2 ~ RPAREN
+}
 
 id_or_wild = { identifier | wildcard }
 wildcard = { UNDERSCORE }
