@@ -1,4 +1,3 @@
-use lalrpop_util::lalrpop_mod;
 use pest_derive::Parser;
 
 pub mod boolean_expression;
@@ -8,15 +7,11 @@ pub mod errors;
 #[grammar = "sleigh.pest"]
 pub struct SleighParser;
 
-lalrpop_mod!(pub boolean_expression_lalr);
-lalrpop_mod!(pub sleigh);
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use crate::boolean_expression::parse_boolean_expression;
-    use crate::boolean_expression_lalr::expressionParser;
     use crate::errors::Error;
 
     #[test]
@@ -25,7 +20,6 @@ mod tests {
         let mut definitions = HashMap::new();
         definitions.insert("SH_VERSION".to_string(), "2".to_string());
         assert!(parse_boolean_expression(input, &definitions).unwrap());
-        assert!(expressionParser::new().parse(&definitions, input).unwrap());
     }
 
     #[test]
@@ -34,28 +28,16 @@ mod tests {
         let mut definitions = HashMap::new();
         definitions.insert("dsPIC24F".to_string(), Default::default());
         assert!(!parse_boolean_expression(input, &definitions).unwrap());
-        assert!(!expressionParser::new().parse(&definitions, input).unwrap());
     }
 
     #[test]
     fn not_defined() {
-        use lalrpop_util::ParseError;
-
         let input = r#"(defined(test) || defined(ti)) && PROCESSOR == "PIC_16""#;
         assert_eq!(
             parse_boolean_expression(input, &Default::default())
                 .err()
                 .unwrap(),
             Error::NotDefined("PROCESSOR".to_string())
-        );
-        assert_eq!(
-            expressionParser::new()
-                .parse(&Default::default(), input)
-                .err()
-                .unwrap(),
-            ParseError::User {
-                error: Error::NotDefined("PROCESSOR".to_string())
-            }
         );
     }
 
@@ -65,25 +47,18 @@ mod tests {
         let mut definitions = HashMap::new();
         definitions.insert("DATA_ENDIAN".to_string(), "little".to_string());
         assert!(parse_boolean_expression(input, &definitions).unwrap());
-        assert!(expressionParser::new().parse(&definitions, input).unwrap());
     }
 
     #[test]
     fn equals() {
         let input = r#""FOO" == "FOO""#;
         assert!(parse_boolean_expression(input, &Default::default()).unwrap());
-        assert!(expressionParser::new()
-            .parse(&Default::default(), input)
-            .unwrap());
     }
 
     #[test]
     fn no_equals() {
         let input = r#""BOO" == "FOO""#;
         assert!(!parse_boolean_expression(input, &Default::default()).unwrap());
-        assert!(!expressionParser::new()
-            .parse(&Default::default(), input)
-            .unwrap());
     }
 
     #[test]
@@ -92,7 +67,6 @@ mod tests {
         let mut definitions = HashMap::new();
         definitions.insert("BOO".to_string(), "TEST".to_string());
         assert!(!parse_boolean_expression(input, &definitions).unwrap());
-        assert!(!expressionParser::new().parse(&definitions, input).unwrap());
     }
 
     #[test]
@@ -101,7 +75,6 @@ mod tests {
         let mut definitions = HashMap::new();
         definitions.insert("FOO".to_string(), "FOO".to_string());
         assert!(parse_boolean_expression(input, &definitions).unwrap());
-        assert!(expressionParser::new().parse(&definitions, input).unwrap());
     }
 
     #[test]
@@ -110,7 +83,6 @@ mod tests {
         let mut definitions = HashMap::new();
         definitions.insert("FOO".to_string(), "FOO".to_string());
         assert!(parse_boolean_expression(input, &definitions).unwrap());
-        assert!(expressionParser::new().parse(&definitions, input).unwrap());
     }
 
     #[test]
@@ -119,7 +91,6 @@ mod tests {
         let mut definitions = HashMap::new();
         definitions.insert("FOO".to_string(), "FOO".to_string());
         assert!(!parse_boolean_expression(input, &definitions).unwrap());
-        assert!(!expressionParser::new().parse(&definitions, input).unwrap());
     }
 
     #[test]
@@ -128,7 +99,6 @@ mod tests {
         let mut definitions = HashMap::new();
         definitions.insert("FOO".to_string(), "FOO".to_string());
         assert!(parse_boolean_expression(input, &definitions).unwrap());
-        assert!(expressionParser::new().parse(&definitions, input).unwrap());
     }
 
     #[test]
@@ -141,6 +111,5 @@ mod tests {
         definitions.insert("D".to_string(), "D".to_string());
         definitions.insert("E".to_string(), "E".to_string());
         assert!(!parse_boolean_expression(input, &definitions).unwrap());
-        assert!(!expressionParser::new().parse(&definitions, input).unwrap());
     }
 }
