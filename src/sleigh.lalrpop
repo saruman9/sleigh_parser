@@ -13,9 +13,13 @@ Many<T>: Vec<T> = {
 };
 
 pub spec = {
-    endiandef definition,
-    endiandef constructorlike,
-};
+    endiandef definition_or_constructorlike*,
+}
+
+definition_or_constructorlike: () = {
+    definition,
+    constructorlike,
+}
 
 endiandef = {
     KEY_DEFINE KEY_ENDIAN ASSIGN endian SEMI,
@@ -49,6 +53,42 @@ constructorlike = {
     // constructor,
 }
 
+macrodef = {
+    KEY_MACRO identifier LPAREN arguments RPAREN semanticbody,
+}
+
+semanticbody = {
+    "semantic",
+}
+
+arguments = {
+    oplist?,
+}
+
+oplist = {
+    identifier (COMMA identifier)*,
+}
+
+identifier = {
+	KEY_SPACE,
+	KEY_TOKEN,
+	KEY_TYPE,
+	KEY_UNIMPL,
+	KEY_VALUES,
+	KEY_VARIABLES,
+	KEY_WORDSIZE,
+}
+
+strict_id = {
+    IDENTIFIER,
+}
+
+integer = {
+    HEX_INT,
+    DEC_INT,
+    BIN_INT,
+}
+
 cpp_comment: () = {
     CPPCOMMENT =>? Err(
         ParseError::User {
@@ -57,18 +97,13 @@ cpp_comment: () = {
     ),
 };
 
-integer = {
-    HEX_INT,
-    DEC_INT,
-    BIN_INT,
-}
-
 match {
     // Preprocessor-generated directives
     r"\x08[^\n\x08]*\x08" => PP_POSITION,
 
     // IDs, Literals
     r"[[:alpha:]_.][[:alnum:]_.]*" => IDENTIFIER,
+    // FIXME: Escape characters should be parsed
     r#""[^\\"]*""# => QSTRING,
     r"[[:digit:]]+" => DEC_INT,
     r"0x[[:xdigit:]]+" => HEX_INT,
@@ -169,4 +204,6 @@ match {
     "$or" => SPEC_OR,
     "$and" => SPEC_AND,
     "$xor" => SPEC_XOR,
+} else {
+    _
 }
