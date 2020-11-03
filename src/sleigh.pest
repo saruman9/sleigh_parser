@@ -7,21 +7,24 @@ WHITESPACE = _{ "\r" | " " | "\t" | "\n" }
 spec = { pp_position* ~ endiandef ~ ( definition | constructorlike | pp_position )* }
 endiandef = { KEY_DEFINE ~ KEY_ENDIAN ~ ASSIGN ~ endian ~ SEMI }
 endian = { KEY_BIG | KEY_LITTLE }
+
 definition = {
       (
           aligndef
         | tokendef
-        // | contextdef
+        | contextdef
         | spacedef
         | varnodedef
-        // | bitrangedef
-        // | pcodeopdef
-        // | valueattach
-        // | nameattach
-        // | varattach
+        | bitrangedef
+        | pcodeopdef
+        | valueattach
+        | nameattach
+        | varattach
     ) ~ SEMI
 }
+
 aligndef = { KEY_DEFINE ~ KEY_ALIGNMENT ~ ASSIGN ~ integer }
+
 tokendef = { KEY_DEFINE ~ KEY_TOKEN ~ identifier ~ LPAREN ~ integer ~ RPAREN ~ fielddefs }
 fielddefs = { fielddef* }
 fielddef = { strict_id ~ ASSIGN ~ LPAREN ~ integer ~ COMMA ~ integer ~ RPAREN ~ fieldmods }
@@ -31,6 +34,20 @@ fieldmod = {
     | KEY_HEX
     | KEY_DEC
 }
+
+contextdef = { KEY_DEFINE ~ KEY_CONTEXT ~ identifier ~ contextfielddefs }
+contextfielddefs = { contextfielddef* }
+contextfielddef = { identifier ~ ASSIGN ~ LPAREN ~ integer ~ COMMA ~ integer ~ RPAREN
+      ~ contextfieldmods
+}
+contextfieldmods = { contextfieldmod* }
+contextfieldmod = {
+      KEY_SIGNED
+    | KEY_NOFLOW
+    | KEY_HEX
+    | KEY_DEC
+}
+
 spacedef = { KEY_DEFINE ~ KEY_SPACE ~ identifier ~ spacemods }
 spacemods = { spacemod* }
 spacemod = {
@@ -44,13 +61,46 @@ type_ = _{ identifier }
 sizemod = { KEY_SIZE ~ ASSIGN ~ integer }
 wordsizemod = { KEY_WORDSIZE ~ ASSIGN ~ integer }
 
-varnodedef = { KEY_DEFINE ~ identifier ~ KEY_OFFSET
-      ~ ASSIGN ~ integer ~ KEY_SIZE ~ ASSIGN ~ integer
-      ~ identifierlist }
+varnodedef = { KEY_DEFINE ~ identifier ~ KEY_OFFSET ~ ASSIGN ~ integer ~ KEY_SIZE ~ ASSIGN
+      ~ integer ~ identifierlist }
+
+bitrangedef = { KEY_DEFINE ~ KEY_BITRANGE ~ bitranges }
+bitranges = { bitrange+ }
+bitrange = { identifier ~ ASSIGN ~ identifier ~ LBRACKET ~ integer ~ COMMA ~ integer
+      ~ RBRACKET
+}
+
+pcodeopdef = { KEY_DEFINE ~ KEY_PCODEOP ~ identifierlist }
+
+valueattach = { KEY_ATTACH ~ KEY_VALUES ~ identifierlist ~ intblist }
+
+nameattach = { KEY_ATTACH ~ KEY_NAMES ~ identifierlist ~ stringoridentlist }
+
+varattach = { KEY_ATTACH ~ KEY_VARIABLES ~ identifierlist ~ identifierlist }
 
 identifierlist = {
       LBRACKET ~ id_or_wild+ ~ RBRACKET
     | id_or_wild
+}
+stringoridentlist = {
+      LBRACKET ~ stringorident+ ~ RBRACKET
+      | stringorident
+}
+stringorident = {
+      id_or_wild
+    | qstring
+}
+intblist = {
+      LBRACKET ~ intbpart+ ~ RBRACKET
+      | neginteger
+}
+intbpart = {
+      neginteger
+    | UNDERSCORE
+}
+neginteger = {
+      integer
+    | MINUS ~ integer
 }
 
 constructorlike = {
@@ -155,7 +205,7 @@ RPAREN = _{ ")" }
 
 // Miscellaneous
 ELLIPSIS = _{ "..." }
-UNDERSCORE = _{ "_" }
+UNDERSCORE = { "_" }
 COLON = _{ ":" }
 COMMA = _{ "," }
 EXCLAIM = _{ "!" }
@@ -190,7 +240,7 @@ RIGHT = _{ ">>" }
 
 // Arithmetic operations
 PLUS = _{ "+" }
-MINUS = _{ "-" }
+MINUS = { "-" }
 ASTERISK = _{ "*" }
 SLASH = _{ "/" }
 PERCENT = _{ "%" }
