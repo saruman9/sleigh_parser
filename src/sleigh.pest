@@ -111,7 +111,6 @@ constructorlike = {
 macrodef = { KEY_MACRO ~ identifier ~ LPAREN ~ arguments ~ RPAREN ~ semanticbody }
 arguments = { oplist? }
 oplist = { identifier ~ (COMMA ~ identifier)* }
-semanticbody = { "semanticbody" }
 
 withblock = { RES_WITH ~ id_or_nil ~ COLON ~ bitpat_or_nil ~ contextblock ~ LBRACE
       ~ constructorlikelist ~ RBRACE
@@ -345,7 +344,7 @@ KEY_VARIABLES = _{ "variables" }
 KEY_WORDSIZE = _{ "wordsize" }
 
 // Grouping, block, and sectioning symbols
-LBRACE = _{ "_{" }
+LBRACE = _{ "{" }
 RBRACE = _{ "}" }
 LBRACKET = _{ "[" }
 RBRACKET = _{ "]" }
@@ -415,3 +414,219 @@ OCTAL_ESCAPE = { "\\" ~ ('0'..'3')? ~ ASCII_OCT_DIGIT{1,2} }
 DEC_INT = @{ ASCII_DIGIT+ }
 HEX_INT = @{ "0x" ~ ASCII_HEX_DIGIT+ }
 BIN_INT = @{ "0b" ~ ASCII_BIN_DIGIT+ }
+
+// ---------------------
+// Semantic Lexer/Parser
+// ---------------------
+
+semanticbody = { LBRACE ~ semantic ~ RBRACE }
+semantic = { code_block }
+code_block = { statements }
+statements = { statement+ }
+
+label = { LESS ~ identifier ~ GREAT }
+section_def = { LEFT ~ identifier ~ RIGHT }
+statement = {
+      (
+          assignment
+        | declaration
+        | funcall
+        | build_stmt
+        | crossbuild_stmt
+        | goto_stmt
+        | cond_stmt
+        | call_stmt
+        | export
+        | return_stmt
+    )? ~ SEMI
+    | label
+    | section_def
+    | outererror
+}
+
+outererror = {
+      EQUAL
+    | NOTEQUAL
+    |	FEQUAL
+    |	FNOTEQUAL
+    |	LESSEQUAL
+    |	GREATEQUAL
+    |	SLESS
+    |	SGREAT
+    |	SLESSEQUAL
+    |	SGREATEQUAL
+    |	FLESS
+    |	FGREAT
+    |	FLESSEQUAL
+    |	FGREATEQUAL
+    |	ASSIGN
+    |	COLON
+    |	COMMA
+    |	RBRACKET
+    |	BOOL_OR
+    |	BOOL_XOR
+    |	BOOL_AND
+    |	PIPE
+    |	CARET
+    |	AMPERSAND
+    |	SRIGHT
+    |	PLUS
+    |	MINUS
+    |	FPLUS
+    |	FMINUS
+    |	SLASH
+    |	PERCENT
+    |	SDIV
+    |	SREM
+    |	FMULT
+    |	FDIV
+    |	TILDE
+    |	LPAREN
+    |	RPAREN
+}
+
+assignment = {
+      KEY_LOCAL ~ lvalue ~ ASSIGN ~ expr
+    | lvalue ~ ASSIGN ~ expr
+}
+
+declaration = { KEY_LOCAL ~ identifier ~ (COLON ~ constant)? }
+lvalue = {
+      sembitrange
+    | identifier ~ (COLON ~ constant)?
+    | sizedstar ~ expr
+}
+sembitrange = { identifier ~ LBRACKET ~ constant ~ COMMA ~ constant ~ RBRACKET }
+sizedstar = { ASTERISK ~ ((LBRACKET ~ identifier ~ RBRACKET)? ~ (COLON ~ constant)?)? }
+funcall = { expr_apply }
+build_stmt = { KEY_BUILD ~ identifier }
+crossbuild_stmt = { KEY_CROSSBUILD ~ varnode ~ COMMA ~ identifier }
+goto_stmt = { KEY_GOTO ~ jumpdest }
+jumpdest = {
+      identifier
+    | LBRACKET ~ expr ~ RBRACKET
+    | integer
+    | constant ~ LBRACKET ~ identifier ~ RBRACKET
+    | label
+}
+cond_stmt = { RES_IF ~ expr ~ goto_stmt }
+call_stmt = { KEY_CALL ~ jumpdest }
+return_stmt = { KEY_RETURN ~ LBRACKET ~ expr ~ RBRACKET }
+sizedexport = { sizedstar ~ identifier }
+export = {
+      KEY_EXPORT ~ sizedexport
+    | KEY_EXPORT ~ varnode
+}
+
+expr = { expr_boolor }
+expr_boolor = { expr_booland ~ (expr_boolor_op ~ expr_booland)* }
+expr_boolor_op = { BOOL_OR }
+expr_booland = { expr_or ~ (expr_booland_op ~ expr_or)* }
+expr_booland_op = {
+      BOOL_AND
+    | BOOL_XOR
+}
+expr_or = { expr_xor ~ (expr_or_op ~ expr_xor)* }
+expr_or_op = { PIPE }
+expr_xor = { expr_and ~ (expr_xor_op ~ expr_and)* }
+expr_xor_op = { CARET }
+expr_and = { expr_eq ~ (expr_and_op ~ expr_eq)* }
+expr_and_op = { AMPERSAND }
+expr_eq = { expr_comp ~ (expr_eq_op ~ expr_comp)* }
+expr_eq_op = {
+      EQUAL
+    | NOTEQUAL
+    | FEQUAL
+    | FNOTEQUAL
+}
+expr_comp = { expr_shift ~ (expr_compare_op ~ expr_shift)* }
+expr_compare_op = {
+      LESS
+    |	GREATEQUAL
+    |	LESSEQUAL
+    |	GREAT
+    |	SLESS
+    |	SGREATEQUAL
+    |	SLESSEQUAL
+    |	SGREAT
+    |	FLESS
+    |	FGREATEQUAL
+    |	FLESSEQUAL
+    |	FGREAT
+}
+expr_shift = { expr_add ~ (expr_shift_op ~ expr_add)* }
+expr_shift_op = {
+      LEFT
+    | RIGHT
+    | SRIGHT
+}
+expr_add = { expr_mult ~ (expr_add_op ~ expr_mult)* }
+expr_add_op = {
+      PLUS
+    | MINUS
+    | FPLUS
+    | FMINUS
+}
+expr_mult = { expr_unary ~ (expr_mult_op ~ expr_unary)* }
+expr_mult_op = {
+      ASTERISK
+    |	SLASH
+    |	PERCENT
+    |	SDIV
+    |	SREM
+    |	FMULT
+    |	FDIV
+}
+expr_unary = { expr_unary_op? ~ expr_func }
+expr_unary_op = {
+      EXCLAIM
+    |	TILDE
+    |	MINUS
+    |	FMINUS
+    |	sizedstar
+}
+expr_func = {
+      expr_apply
+    | expr_term
+}
+expr_apply = { identifier ~ expr_operands }
+expr_operands = { LPAREN ~ (expr ~ (COMMA ~ expr)*)? ~ RPAREN }
+expr_term = {
+      varnode
+    | sembitrange
+    | LPAREN ~ expr ~ RPAREN
+}
+varnode = {
+      integer ~ (COLON ~ constant)?
+    | identifier ~ (COLON ~ constant)?
+    | AMPERSAND ~ (COLON ~ constant)? ~ varnode
+}
+constant = { integer }
+
+// Floating-point comparisons
+FEQUAL = { "f==" }
+FNOTEQUAL = { "f!=" }
+FLESS = { "f<" }
+FGREAT = { "f>" }
+FLESSEQUAL = { "f<=" }
+FGREATEQUAL = { "f>=" }
+
+// Floating-point operations
+FPLUS = { "f+" }
+FMINUS = { "f-" }
+FMULT = { "f*" }
+FDIV = { "f/" }
+
+// Signed comparisons
+SLESS = { "s<" }
+SGREAT = { "s>" }
+SLESSEQUAL = { "s<=" }
+SGREATEQUAL = { "s>=" }
+
+// Signed operations
+SRIGHT = { "s>>" }
+SDIV = { "s/" }
+SREM = { "s%" }
+
+// Reserved words
+RES_IF = { "if" }
