@@ -590,14 +590,14 @@ expr_func = {
 expr_apply = { identifier ~ expr_operands }
 expr_operands = { LPAREN ~ (expr ~ (COMMA ~ expr)*)? ~ RPAREN }
 expr_term = {
-      varnode
-    | sembitrange
+      sembitrange
     | LPAREN ~ expr ~ RPAREN
+    | varnode
 }
 varnode = {
       integer ~ (COLON ~ constant)?
-    | identifier ~ (COLON ~ constant)?
     | AMPERSAND ~ (COLON ~ constant)? ~ varnode
+    | identifier ~ (COLON ~ constant)?
 }
 constant = { integer }
 
