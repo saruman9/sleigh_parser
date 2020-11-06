@@ -1,0 +1,170 @@
+use super::lexer::{LexicalError, Token};
+
+grammar<'input>(input: &'input str);
+
+extern {
+    type Location = usize;
+    type Error = LexicalError;
+
+    enum Token<'input> {
+        "with" => Token::With,
+        "alignment" => Token::Alignment,
+        "attach" => Token::Attach,
+        "big" => Token::Big,
+        "bitrange" => Token::Bitrange,
+        "build" => Token::Build,
+        "call" => Token::Call,
+        "context" => Token::Context,
+        "crossbuild" => Token::Crossbuild,
+        "dec" => Token::Dec,
+        "default" => Token::Default,
+        "define" => Token::Define,
+        "endian" => Token::Endian,
+        "export" => Token::Export,
+        "goto" => Token::GoTo,
+        "hex" => Token::Hex,
+        "little" => Token::Little,
+        "local" => Token::Local,
+        "macro" => Token::Macro,
+        "names" => Token::Names,
+        "noflow" => Token::NoFlow,
+        "offset" => Token::Offset,
+        "pcodeop" => Token::PCodeOp,
+        "return" => Token::Return,
+        "signed" => Token::Signed,
+        "size" => Token::Size,
+        "space" => Token::Space,
+        "token" => Token::Token,
+        "type" => Token::Type,
+        "unimpl" => Token::Unimpl,
+        "values" => Token::Values,
+        "variables" => Token::Variables,
+        "wordsize" => Token::Wordsize,
+        "{" => Token::LBrace,
+        "}" => Token::RBrace,
+        "[" => Token::LBracket,
+        "]" => Token::RBracket,
+        "(" => Token::LParen,
+        ")" => Token::RParen,
+        "..." => Token::Ellipsis,
+        "_" => Token::Underscore,
+        ":" => Token::Colon,
+        "," => Token::Comma,
+        "!" => Token::Exclaim,
+        "~" => Token::Tilde,
+        ";" => Token::Semi,
+        "=" => Token::Assign,
+        "==" => Token::Equal,
+        "!=" => Token::NotEqual,
+        "<" => Token::Less,
+        ">" => Token::Great,
+        "<=" => Token::LessEqual,
+        ">=" => Token::GreatEqual,
+        "||" => Token::BoolOr,
+        "^^" => Token::BoolXor,
+        "&&" => Token::BoolAnd,
+        "|" => Token::Pipe,
+        "^" => Token::Caret,
+        "&" => Token::Ampersand,
+        "<<" => Token::Left,
+        ">>" => Token::Right,
+        "+" => Token::Plus,
+        "-" => Token::Minus,
+        "*" => Token::Asterisk,
+        "/" => Token::Slash,
+        "%" => Token::Percent,
+        "$or" => Token::SpecOr,
+        "$and" => Token::SpecAnd,
+        "$xor" => Token::SpecXor,
+        Identifier => Token::Identifier(<&'input str>),
+        QString => Token::QString(<&'input str>),
+        DecInt => Token::DecInt(<&'input str>),
+        HexInt => Token::HexInt(<&'input str>),
+        BinInt => Token::BinInt(<&'input str>),
+    }
+}
+
+pub spec = {
+    endiandef definition_or_constructorlike*,
+}
+
+definition_or_constructorlike = {
+    definition,
+    // constructorlike,
+}
+
+endiandef = {
+    "define" "endian" "=" endian ";",
+}
+
+endian = {
+    "big",
+    "little",
+}
+
+definition = {
+    aligndef ";",
+    // tokendef SEMI,
+    // contextdef SEMI,
+    // spacedef SEMI,
+    // varnodedef SEMI,
+    // bitrangedef SEMI,
+    // pcodeopdef SEMI,
+    // valueattach SEMI,
+    // nameattach SEMI,
+    // varattach SEMI,
+}
+
+aligndef = {
+    "define" "alignment" "=" integer,
+}
+
+// constructorlike = {
+//     macrodef,
+//     // withblock,
+//     // constructor,
+// }
+
+// macrodef = {
+//     KEY_MACRO identifier LPAREN arguments RPAREN semanticbody,
+// }
+
+// semanticbody = {
+//     "semantic",
+// }
+
+// arguments = {
+//     oplist?,
+// }
+
+// oplist = {
+//     identifier (COMMA identifier)*,
+// }
+
+// identifier = {
+// 	KEY_SPACE,
+// 	KEY_TOKEN,
+// 	KEY_TYPE,
+// 	KEY_UNIMPL,
+// 	KEY_VALUES,
+// 	KEY_VARIABLES,
+// 	KEY_WORDSIZE,
+// }
+
+// strict_id = {
+//     IDENTIFIER,
+// }
+
+// cpp_comment: () = {
+//     CPPCOMMENT =>? Err(
+//         ParseError::User {
+//             error: Error::Parsing("Detected CPP comment".to_string()),
+//         }
+//     ),
+// };
+
+integer = {
+    HexInt,
+    DecInt,
+    BinInt,
+}

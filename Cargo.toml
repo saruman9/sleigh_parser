@@ -6,10 +6,8 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-pest = "2.1.3"
-pest_derive = "2.1.0"
-lalrpop-util = "0.19"
-regex = "1"
+lalrpop-util = "0.19.1"
+logos = "0.11.4"
 
 [build-dependencies]
-lalrpop = { version = "0.19", features = ["lexer"] }
+lalrpop = "0.19.1"
