@@ -1,14 +1,11 @@
-use logos::Logos;
+use sleigh_parser::parser::lexer::Tokenizer;
 
-use sleigh_parser::parser::lexer;
-
-const TEST: &str = r#"
-@define VEX_NONE "vexMode=1 & vexVVVV=0"
-"#;
+const TEST: &str = r###"
+"###;
 
 fn main() {
-    let lex = lexer::Token::lexer(TEST);
-    for token in lex.spanned() {
+    let tokens = Tokenizer::new(TEST);
+    for token in tokens {
         println!("{:?}", token);
     }
 }

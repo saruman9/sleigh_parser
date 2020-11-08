@@ -77,7 +77,7 @@ extern {
         "$and" => Token::SpecAnd,
         "$xor" => Token::SpecXor,
         Identifier => Token::Identifier(<&'input str>),
-        QString => Token::QString(<&'input str>),
+        QString => Token::QString(<String>),
         DecInt => Token::DecInt(<&'input str>),
         HexInt => Token::HexInt(<&'input str>),
         BinInt => Token::BinInt(<&'input str>),

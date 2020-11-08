@@ -1,6 +1,8 @@
-use logos::Logos;
+use logos::{Lexer, Logos};
 
 #[derive(Logos, Debug, Clone)]
+#[logos(subpattern hex = r"[0-9a-fA-F]")]
+#[logos(subpattern pre_id = r"[0-9A-Za-z_]+")]
 pub enum Token<'input> {
     #[error]
     UnexpectedToken,
@@ -17,17 +19,17 @@ pub enum Token<'input> {
     // TODO: [issue #143] Expose captured groups for regex match.
     #[regex(r#"@include\s+"([^"]*)""#)]
     IncludePreproc(&'input str),
-    #[regex(r#"@define\s+([0-9A-Za-z_]+)\s+"([^"]*)""#)]
+    #[regex(r#"@define\s+(?&pre_id)\s+"([^"]*)""#)]
     Define1Preproc(&'input str),
-    #[regex(r"@define\s+([0-9A-Za-z_]+)\s+(\S+)")]
+    #[regex(r"@define\s+(?&pre_id)\s+(\S+)")]
     Define2Preproc(&'input str),
-    #[regex(r"@define\s+([0-9A-Za-z_]+)")]
+    #[regex(r"@define\s+(?&pre_id)")]
     Define3Preproc(&'input str),
-    #[regex(r"@undef\s+([0-9A-Z_a-z]+)")]
+    #[regex(r"@undef\s+(?&pre_id)")]
     UnDefPreproc(&'input str),
-    #[regex(r"@ifdef\s+([0-9A-Za-z_]+)")]
+    #[regex(r"@ifdef\s+(?&pre_id)")]
     IfDefPreproc(&'input str),
-    #[regex(r"@ifndef\s+([0-9A-Za-z_]+)")]
+    #[regex(r"@ifndef\s+(?&pre_id)")]
     IfNDefPreproc(&'input str),
     #[regex(r"@if\s+(.*)")]
     IfPreproc(&'input str),
@@ -37,7 +39,7 @@ pub enum Token<'input> {
     EndIfPreproc(&'input str),
     #[regex(r"@else")]
     ElsePreproc(&'input str),
-    #[regex(r"\$\(([0-9A-Za-z_]+)\)")]
+    #[regex(r"\$\((?&pre_id)\)")]
     ExpansionPreproc(&'input str),
 
     // Reserved words and keywords
@@ -200,26 +202,27 @@ pub enum Token<'input> {
     #[regex(r"[A-Za-z_.][A-Za-z_.0-9]*", |lex| lex.slice())]
     Identifier(&'input str),
     #[token("\"")]
-    StartString,
-    QString(&'input str),
+    StartQString,
+    QString(String),
     #[regex(r"[0-9]+")]
     DecInt(&'input str),
-    #[regex(r"0x[:xdigit:]+")]
+    #[regex(r"0x(?&hex)+")]
     HexInt(&'input str),
     #[regex(r"0b[01]+")]
-    BinInt(&'input str)
+    BinInt(&'input str),
 }
 
 #[derive(Logos, Debug, Clone)]
-pub enum QString {
+#[logos(subpattern hex = r"[0-9a-fA-F]")]
+pub enum QString<'input> {
     #[error]
     Error,
     #[regex(r#"[^\\"]+"#)]
-    String,
+    String(&'input str),
     #[regex(r#"\\[btnfr"'\\]"#)]
-    EscapeCharacter,
+    EscapeCharacter(&'input str),
     // TODO: [issue #126] {n,m} repetition range is currently unsupported.
-    #[regex(r"\\u[:xdigit:][:xdigit:][:xdigit:][:xdigit:]")]
+    #[regex(r"\\u(?&hex)(?&hex)(?&hex)(?&hex)")]
     UnicodeEscape,
     // TODO: [issue #126] {n,m} repetition range is currently unsupported.
     #[regex(r"\\[0-3]?[0-7][0-7]?")]
@@ -228,9 +231,108 @@ pub enum QString {
     EndString,
 }
 
-pub(crate) type Span = std::ops::Range<usize>;
+pub struct Tokenizer<'input> {
+    lex: Lexer<'input, Token<'input>>,
+}
 
+impl<'input> Tokenizer<'input> {
+    pub fn new(input: &'input str) -> Self {
+        let lex = Token::lexer(input);
+        Self { lex }
+    }
+}
+
+pub(crate) type Span = std::ops::Range<usize>;
+#[derive(Debug)]
 pub struct LexicalError {
-    err: String,
+    error: String,
     span: Span,
+}
+impl LexicalError {
+    fn new(error: impl ToString, span: Span) -> Self {
+        Self {
+            error: error.to_string(),
+            span,
+        }
+    }
+}
+
+impl<'input> Iterator for Tokenizer<'input> {
+    type Item = Result<(usize, Token<'input>, usize), LexicalError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let token = self.lex.next()?;
+        let span = self.lex.span();
+        match token {
+            Token::UnexpectedToken => {
+                let error = format!("Unknown token: {}", self.lex.slice());
+                Some(Err(LexicalError::new(error, span)))
+            }
+            Token::StartQString => {
+                let mut result = String::new();
+                let mut lex = self.lex.to_owned().morph();
+                loop {
+                    match lex.next() {
+                        Some(QString::String(_)) => result += lex.slice(),
+                        Some(QString::EscapeCharacter(_)) => {
+                            match lex.slice().chars().nth(1).unwrap() {
+                                'b' => result.push('\u{0008}'),
+                                't' => result.push('\t'),
+                                'n' => result.push('\n'),
+                                'f' => result.push('\u{000c}'),
+                                'r' => result.push('\r'),
+                                '"' => result.push('"'),
+                                '\'' => result.push('\''),
+                                '\\' => result.push('\\'),
+                                c => {
+                                    return Some(Err(LexicalError::new(
+                                        format!("Unknown escape character: {}", c),
+                                        lex.span(),
+                                    )))
+                                }
+                            }
+                        }
+                        Some(QString::UnicodeEscape) => {
+                            let slice = lex.slice();
+                            let hex = &slice[2..slice.len()];
+                            result.push(
+                                u32::from_str_radix(hex, 16)
+                                    .map(|c| std::char::from_u32(c).unwrap())
+                                    .unwrap(),
+                            );
+                        }
+                        Some(QString::OctalEscape) => {
+                            let slice = lex.slice();
+                            let oct = &slice[1..slice.len()];
+                            result.push(
+                                u32::from_str_radix(oct, 8)
+                                    .map(|c| std::char::from_u32(c).unwrap())
+                                    .unwrap(),
+                            );
+                        }
+                        Some(QString::EndString) => break,
+                        Some(QString::Error) => {
+                            return Some(Err(LexicalError::new(
+                                format!("Unexpected string: {}", lex.slice()),
+                                lex.span(),
+                            )))
+                        }
+                        None => {
+                            return Some(Err(LexicalError::new(
+                                "Unclosed string",
+                                span.start..lex.span().end,
+                            )))
+                        }
+                    }
+                }
+                self.lex = lex.morph::<Token>();
+                Some(Ok((
+                    span.start,
+                    Token::QString(result),
+                    self.lex.span().end,
+                )))
+            }
+            _ => Some(Ok((span.start, token, span.end))),
+        }
+    }
 }
