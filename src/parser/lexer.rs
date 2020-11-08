@@ -15,9 +15,9 @@ pub enum Token<'input> {
 
     // Preprocessor
     // TODO: [issue #143] Expose captured groups for regex match.
-    #[regex(r#"@include\s+"(.*)""#)]
+    #[regex(r#"@include\s+"([^"]*)""#)]
     IncludePreproc(&'input str),
-    #[regex(r#"@define\s+([0-9A-Za-z_]+)\s+"(.*)""#)]
+    #[regex(r#"@define\s+([0-9A-Za-z_]+)\s+"([^"]*)""#)]
     Define1Preproc(&'input str),
     #[regex(r"@define\s+([0-9A-Za-z_]+)\s+(\S+)")]
     Define2Preproc(&'input str),
