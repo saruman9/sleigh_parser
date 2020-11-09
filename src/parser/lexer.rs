@@ -1,4 +1,20 @@
 use logos::{Lexer, Logos};
+use regex::Regex;
+
+lazy_static::lazy_static! {
+    static ref INCLUDE_RE: Regex = Regex::new(r#"^\s*@include\s+"(.*)"\s*$"#).unwrap();
+    static ref DEFINE1_RE: Regex = Regex::new(r#"^\s*@define\s+([0-9A-Z_a-z]+)\s+"(.*)"\s*$"#).unwrap();
+    static ref DEFINE2_RE: Regex = Regex::new(r"^\s*@define\s+([0-9A-Z_a-z]+)\s+(\S+)\s*$").unwrap();
+    static ref DEFINE3_RE: Regex = Regex::new(r"^\s*@define\s+([0-9A-Z_a-z]+)\s*$").unwrap();
+    static ref UNDEF_RE: Regex = Regex::new(r"^\s*@undef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
+    static ref IFDEF_RE: Regex = Regex::new(r"^\s*@ifdef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
+    static ref IFNDEF_RE: Regex = Regex::new(r"^\s*@ifndef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
+    static ref IF_RE: Regex = Regex::new(r"^\s*@if\s+(.*)").unwrap();
+    static ref ELIF_RE: Regex = Regex::new(r"^\s*@elif\s+(.*)").unwrap();
+    static ref ENDIF_RE: Regex = Regex::new(r"^\s*@endif\s*$").unwrap();
+    static ref ELSE_RE: Regex = Regex::new(r"^\s*@else\s*$").unwrap();
+    static ref EXPANSION_RE: Regex = Regex::new(r"\$\(([0-9A-Z_a-z]+)\)").unwrap();
+}
 
 #[derive(Logos, Debug, Clone)]
 #[logos(subpattern hex = r"[0-9a-fA-F]")]
@@ -331,6 +347,15 @@ impl<'input> Iterator for Tokenizer<'input> {
                     Token::QString(result),
                     self.lex.span().end,
                 )))
+            }
+            Token::IncludePreproc(include_preproc) => {
+                let file = INCLUDE_RE
+                    .captures(include_preproc)
+                    .unwrap()
+                    .get(1)
+                    .unwrap()
+                    .as_str();
+                Some(Ok((span.start, Token::IncludePreproc(file), span.end)))
             }
             _ => Some(Ok((span.start, token, span.end))),
         }
