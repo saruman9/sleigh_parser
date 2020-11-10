@@ -1,27 +1,10 @@
+use std::{env::args, fs::read_to_string};
+
 use sleigh_parser::parser::lexer::Tokenizer;
 
-const TEST: &str = r###"
-@include "ia.sinc"
-@include "avx.sinc"
-@include "avx_manual.sinc"
-@include "avx2.sinc"
-@include "avx2_manual.sinc"
-@include "adx.sinc"
-@include "clwb.sinc"
-@include "pclmulqdq.sinc"
-@include "mpx.sinc"
-@include "lzcnt.sinc"
-@include "bmi1.sinc"
-@include "bmi2.sinc"
-@include "sha.sinc"
-@include "smx.sinc"
-@include "cet.sinc"
-@include "rdrand.sinc"
-@include "rdseed.sinc"
-"###;
-
 fn main() {
-    let tokens = Tokenizer::new(TEST);
+    let input = read_to_string(args().nth(1).unwrap()).unwrap();
+    let tokens = Tokenizer::new(&input);
     for token in tokens {
         println!("{:?}", token);
     }
