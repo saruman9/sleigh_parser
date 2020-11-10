@@ -1,20 +1,4 @@
 use logos::{Lexer, Logos};
-use regex::Regex;
-
-lazy_static::lazy_static! {
-    static ref INCLUDE_RE: Regex = Regex::new(r#"^\s*@include\s+"(.*)"\s*$"#).unwrap();
-    static ref DEFINE1_RE: Regex = Regex::new(r#"^\s*@define\s+([0-9A-Z_a-z]+)\s+"(.*)"\s*$"#).unwrap();
-    static ref DEFINE2_RE: Regex = Regex::new(r"^\s*@define\s+([0-9A-Z_a-z]+)\s+(\S+)\s*$").unwrap();
-    static ref DEFINE3_RE: Regex = Regex::new(r"^\s*@define\s+([0-9A-Z_a-z]+)\s*$").unwrap();
-    static ref UNDEF_RE: Regex = Regex::new(r"^\s*@undef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
-    static ref IFDEF_RE: Regex = Regex::new(r"^\s*@ifdef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
-    static ref IFNDEF_RE: Regex = Regex::new(r"^\s*@ifndef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
-    static ref IF_RE: Regex = Regex::new(r"^\s*@if\s+(.*)").unwrap();
-    static ref ELIF_RE: Regex = Regex::new(r"^\s*@elif\s+(.*)").unwrap();
-    static ref ENDIF_RE: Regex = Regex::new(r"^\s*@endif\s*$").unwrap();
-    static ref ELSE_RE: Regex = Regex::new(r"^\s*@else\s*$").unwrap();
-    static ref EXPANSION_RE: Regex = Regex::new(r"\$\(([0-9A-Z_a-z]+)\)").unwrap();
-}
 
 #[derive(Logos, Debug, Clone)]
 #[logos(subpattern hex = r"[0-9a-fA-F]")]
@@ -32,31 +16,8 @@ pub enum Token<'input> {
     CppComment,
 
     // Preprocessor
-    // TODO: [issue #143] Expose captured groups for regex match.
-    #[regex(r#"@include\s+"([^"]*)""#)]
-    IncludePreproc(&'input str),
-    #[regex(r#"@define\s+(?&pre_id)\s+"([^"]*)""#)]
-    Define1Preproc(&'input str),
-    #[regex(r"@define\s+(?&pre_id)\s+(\S+)")]
-    Define2Preproc(&'input str),
-    #[regex(r"@define\s+(?&pre_id)")]
-    Define3Preproc(&'input str),
-    #[regex(r"@undef\s+(?&pre_id)")]
-    UnDefPreproc(&'input str),
-    #[regex(r"@ifdef\s+(?&pre_id)")]
-    IfDefPreproc(&'input str),
-    #[regex(r"@ifndef\s+(?&pre_id)")]
-    IfNDefPreproc(&'input str),
-    #[regex(r"@if\s+(.*)")]
-    IfPreproc(&'input str),
-    #[regex(r"@elif\s+(.*)")]
-    ElIfPreproc(&'input str),
-    #[regex(r"@endif")]
-    EndIfPreproc(&'input str),
-    #[regex(r"@else")]
-    ElsePreproc(&'input str),
-    #[regex(r"\$\((?&pre_id)\)")]
-    ExpansionPreproc(&'input str),
+    #[regex(r"\x08[^\n\x08]*\x08")]
+    PPPosition(&'input str),
 
     // Reserved words and keywords
     #[token("with")]
@@ -347,15 +308,6 @@ impl<'input> Iterator for Tokenizer<'input> {
                     Token::QString(result),
                     self.lex.span().end,
                 )))
-            }
-            Token::IncludePreproc(include_preproc) => {
-                let file = INCLUDE_RE
-                    .captures(include_preproc)
-                    .unwrap()
-                    .get(1)
-                    .unwrap()
-                    .as_str();
-                Some(Ok((span.start, Token::IncludePreproc(file), span.end)))
             }
             _ => Some(Ok((span.start, token, span.end))),
         }
