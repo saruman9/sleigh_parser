@@ -1,23 +1,44 @@
-use logos::{Lexer, Logos};
+use log::trace;
+use logos::{Lexer, Logos, Span};
+
+use super::location::Location;
 
 #[derive(Logos, Debug, Clone)]
 #[logos(subpattern hex = r"[0-9a-fA-F]")]
-#[logos(subpattern pre_id = r"[0-9A-Za-z_]+")]
+#[logos(extras = Location)]
 pub enum Token<'input> {
     #[error]
     UnexpectedToken,
 
     // WhiteSpaces
-    #[regex(r"[ \t\r\n]+", logos::skip)]
-    #[regex(r"#[^\n\r]*\r?\n?")]
+    #[regex(r"[ \t]+", logos::skip)]
+    #[regex(r"\r?\n?", |lex| {
+        lex.extras.inc_lineno();
+        logos::Skip
+    })]
+    #[regex(r"#[^\n\r]*\r?\n?", |lex|{
+        lex.extras.inc_lineno();
+    })]
     LineComment,
     // FIXME: Report error
     #[token("//")]
     CppComment,
 
     // Preprocessor
-    #[regex(r"\x08[^\n\x08]*\x08")]
-    PPPosition(&'input str),
+    #[regex(r"\x08[^\n\x08]*\x08", |lex| {
+        let split: Vec<&str> = lex
+            .slice()
+            .trim_matches('\x08')
+            .split("###")
+            .collect();
+        if split.len() == 2 {
+            lex.extras
+                .set_location(split[0], split[1].parse().unwrap(), lex.span());
+            trace!("{}, {:?}", lex.slice(), lex.extras);
+        }
+        logos::Skip
+    })]
+    PPPosition,
 
     // Reserved words and keywords
     #[token("with")]
@@ -191,6 +212,7 @@ pub enum Token<'input> {
 
 #[derive(Logos, Debug, Clone)]
 #[logos(subpattern hex = r"[0-9a-fA-F]")]
+#[logos(extras = Location)]
 pub enum QString<'input> {
     #[error]
     Error,
@@ -219,17 +241,23 @@ impl<'input> Tokenizer<'input> {
     }
 }
 
-pub(crate) type Span = std::ops::Range<usize>;
 #[derive(Debug)]
 pub struct LexicalError {
     error: String,
+    filename: String,
     span: Span,
+    lineno: usize,
 }
 impl LexicalError {
-    fn new(error: impl ToString, span: Span) -> Self {
+    fn new(error: impl ToString, span: Span, location: &Location) -> Self {
         Self {
             error: error.to_string(),
-            span,
+            filename: location.filename().to_string(),
+            span: Span {
+                start: span.start - location.span().start,
+                end: span.end - location.span().end,
+            },
+            lineno: location.lineno(),
         }
     }
 }
@@ -243,7 +271,7 @@ impl<'input> Iterator for Tokenizer<'input> {
         match token {
             Token::UnexpectedToken => {
                 let error = format!("Unknown token: {}", self.lex.slice());
-                Some(Err(LexicalError::new(error, span)))
+                Some(Err(LexicalError::new(error, span, &self.lex.extras)))
             }
             Token::StartQString => {
                 let mut result = String::new();
@@ -265,6 +293,7 @@ impl<'input> Iterator for Tokenizer<'input> {
                                     return Some(Err(LexicalError::new(
                                         format!("Unknown escape character: {}", c),
                                         lex.span(),
+                                        &lex.extras,
                                     )))
                                 }
                             }
@@ -292,12 +321,14 @@ impl<'input> Iterator for Tokenizer<'input> {
                             return Some(Err(LexicalError::new(
                                 format!("Unexpected string: {}", lex.slice()),
                                 lex.span(),
+                                &lex.extras,
                             )))
                         }
                         None => {
                             return Some(Err(LexicalError::new(
                                 "Unclosed string",
                                 span.start..lex.span().end,
+                                &lex.extras,
                             )))
                         }
                     }
