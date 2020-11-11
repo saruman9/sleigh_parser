@@ -20,9 +20,8 @@ pub enum Token<'input> {
         lex.extras.inc_lineno();
     })]
     LineComment,
-    // FIXME: Report error
     #[token("//")]
-    CppComment,
+    CPPComment,
 
     // Preprocessor
     #[regex(r"\x08[^\n\x08]*\x08", |lex| {
@@ -268,11 +267,18 @@ impl<'input> Iterator for Tokenizer<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.lex.next()?;
         let span = self.lex.span();
+        let extras = &self.lex.extras;
         match token {
-            Token::UnexpectedToken => {
-                let error = format!("Unknown token: {}", self.lex.slice());
-                Some(Err(LexicalError::new(error, span, &self.lex.extras)))
-            }
+            Token::UnexpectedToken => Some(Err(LexicalError::new(
+                format!("Unknown token: {}", self.lex.slice()),
+                span,
+                extras,
+            ))),
+            Token::CPPComment => Some(Err(LexicalError::new(
+                "C++ commentaries are not allowed",
+                span,
+                extras,
+            ))),
             Token::StartQString => {
                 let mut result = String::new();
                 let mut lex = self.lex.to_owned().morph();
