@@ -1,0 +1,3 @@
+[submodule "sleigh_processors"]
+	path = sleigh_processors
+	url = git@github.com:saruman9/sleigh_processors.git
