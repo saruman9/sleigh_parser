@@ -263,7 +263,7 @@ impl LexicalError {
 }
 
 impl<'input> Iterator for Tokenizer<'input> {
-    type Item = Result<(usize, Token<'input>, usize), LexicalError>;
+    type Item = Result<(Location, Token<'input>, Location), LexicalError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.lex.next()?;
@@ -342,12 +342,12 @@ impl<'input> Iterator for Tokenizer<'input> {
                 }
                 self.lex = lex.morph::<Token>();
                 Some(Ok((
-                    span.start,
+                    self.lex.extras.clone(),
                     Token::QString(result),
-                    self.lex.span().end,
+                    self.lex.extras.clone(),
                 )))
             }
-            _ => Some(Ok((span.start, token, span.end))),
+            _ => Some(Ok((extras.clone(), token, extras.clone()))),
         }
     }
 }

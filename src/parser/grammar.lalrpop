@@ -1,10 +1,11 @@
 use super::lexer::{LexicalError, Token};
-use super::ast::{Term, Endian};
+use super::ast::{Endian, Term, FieldMod};
+use super::location;
 
 grammar<'input>(input: &'input str);
 
 extern {
-    type Location = usize;
+    type Location = location::Location;
     type Error = LexicalError;
 
     enum Token<'input> {
@@ -85,28 +86,28 @@ extern {
     }
 }
 
-pub Spec = {
-    endiandef definition_or_constructorlike*,
+pub Spec: Box<Term> = {
+    <e:endiandef> <def:definition_or_constructorlike*> => Box::new(Term::Spec(e, def)),
 }
 
-definition_or_constructorlike = {
+definition_or_constructorlike: Box<Term> = {
     definition,
     // constructorlike,
 }
 
-endiandef = {
-    "define" "endian" "=" <endian> ";",
+endiandef: Box<Term> = {
+    "define" "endian" "=" <endian> ";" => Box::new(Term::Endian(<>)),
 }
 
-endian: Endian = {
-    "big" => Endian::Big,
-    "little" => Endian::Little,
+endian: Box<Endian> = {
+    "big" => Box::new(Endian::Big),
+    "little" => Box::new(Endian::Little),
 }
 
-definition = {
-    aligndef ";",
-    // tokendef ";",
-    // contextdef ";",
+definition: Box<Term> = {
+    <aligndef> ";",
+    <tokendef> ";",
+    // <contextdef> ";",
     // spacedef SEMI,
     // varnodedef SEMI,
     // bitrangedef SEMI,
@@ -116,53 +117,53 @@ definition = {
     // varattach SEMI,
 }
 
-aligndef = {
-    "define" "alignment" "=" integer,
+aligndef: Box<Term> = {
+    "define" "alignment" "=" <integer> => Box::new(Term::Alignment(<>)),
 }
 
-tokendef = {
-    "define" "token" identifier "(" integer ")" fielddefs,
+tokendef: Box<Term> = {
+    "define" "token" <i:identifier> "(" <int:integer> ")" <f:fielddefs> => Box::new(Term::Token(i, int, f)),
 }
 
-fielddefs = {
-    fielddef*,
+fielddefs: Box<Term> = {
+    fielddef* => Box::new(Term::FieldDefs(<>)),
 }
 
-fielddef = {
-    strict_id "=" "(" integer "," integer ")" fieldmods,
+fielddef: Term = {
+    <sid:strict_id> "=" "(" <i1:integer> "," <i2:integer> ")" <f:fieldmods> => Term::FieldDef(sid, i1, i2, f),
 }
 
-fieldmods = {
-    fieldmod*,
+fieldmods: Box<Term> = {
+    fieldmod* => Box::new(Term::FieldMods(<>)),
 }
 
-fieldmod = {
-    "signed",
-    "hex",
-    "dec",
+fieldmod: FieldMod = {
+    "signed" => FieldMod::Signed,
+    "hex" => FieldMod::Hex,
+    "dec" => FieldMod::Dec,
 }
 
-contextfielddefs = {
-    contextfielddef*,
+contextfielddefs: Box<Term> = {
+    contextfielddef* => Box::new(Term::FieldDefs(<>)),
 }
 
-contextfielddef = {
-    identifier "=" "(" integer "," integer ")" contextfieldmods,
+contextfielddef: Term = {
+    <id:identifier> "=" "(" <i1:integer> "," <i2:integer> ")" <m:contextfieldmods> => Term::FieldDef(<>),
 }
 
-contextfieldmods = {
-    contextfieldmod*,
+contextfieldmods: Box<Term> = {
+    contextfieldmod* => Box::new(Term::FieldMods(<>)),
 }
 
-contextfieldmod = {
-    "signed",
-    "noflow",
-    "hex",
-    "dec",
+contextfieldmod: FieldMod = {
+    "signed" => FieldMod::Signed,
+    "noflow" => FieldMod::NoFlow,
+    "hex" => FieldMod::Hex,
+    "dec" => FieldMod::Dec,
 }
 
-contextdef = {
-    "define" "context" identifier contextfielddefs,
+contextdef: Box<Term> = {
+    "define" "context" <id:identifier> <fd:contextfielddefs> => Box::new(Term::Context(id, fd)),
 }
 
 // constructorlike = {
@@ -187,52 +188,52 @@ contextdef = {
 //     identifier (COMMA identifier)*,
 // }
 
-identifier = {
+identifier: Box<Term> = {
     strict_id,
     key_as_id,
 }
 
-key_as_id: &'input str = {
-    "alignment" => "alignment",
-    "attach" => "attach",
-    "big" => "big",
-    "bitrange" => "bitrange",
-    "build" => "build",
-    "call" => "call",
-    "context" => "context",
-    "crossbuild" => "crossbuild",
-    "dec" => "dec",
-    "default" => "default",
-    "define" => "define",
-    "endian" => "endian",
-    "export" => "export",
-    "goto" => "goto",
-    "hex" => "hex",
-    "little" => "little",
-    "local" => "local",
-    "macro" => "macro",
-    "names" => "names",
-    "noflow" => "noflow",
-    "offset" => "offset",
-    "pcodeop" => "pcodeop",
-    "return" => "return",
-    "signed" => "signed",
-    "size" => "size",
-    "space" => "space",
-    "token" => "token",
-    "type" => "type",
-    "unimpl" => "unimpl",
-    "values" => "values",
-    "variables" => "variables",
-    "wordsize" => "wordsize",
+key_as_id: Box<Term> = {
+    "alignment" => Box::new(Term::Identifier("alignment".to_string())),
+    "attach" => Box::new(Term::Identifier("attach".to_string())),
+    "big" => Box::new(Term::Identifier("big".to_string())),
+    "bitrange" => Box::new(Term::Identifier("bitrange".to_string())),
+    "build" => Box::new(Term::Identifier("build".to_string())),
+    "call" => Box::new(Term::Identifier("call".to_string())),
+    "context" => Box::new(Term::Identifier("context".to_string())),
+    "crossbuild" => Box::new(Term::Identifier("crossbuild".to_string())),
+    "dec" => Box::new(Term::Identifier("dec".to_string())),
+    "default" => Box::new(Term::Identifier("default".to_string())),
+    "define" => Box::new(Term::Identifier("define".to_string())),
+    "endian" => Box::new(Term::Identifier("endian".to_string())),
+    "export" => Box::new(Term::Identifier("export".to_string())),
+    "goto" => Box::new(Term::Identifier("goto".to_string())),
+    "hex" => Box::new(Term::Identifier("hex".to_string())),
+    "little" => Box::new(Term::Identifier("little".to_string())),
+    "local" => Box::new(Term::Identifier("local".to_string())),
+    "macro" => Box::new(Term::Identifier("macro".to_string())),
+    "names" => Box::new(Term::Identifier("names".to_string())),
+    "noflow" => Box::new(Term::Identifier("noflow".to_string())),
+    "offset" => Box::new(Term::Identifier("offset".to_string())),
+    "pcodeop" => Box::new(Term::Identifier("pcodeop".to_string())),
+    "return" => Box::new(Term::Identifier("return".to_string())),
+    "signed" => Box::new(Term::Identifier("signed".to_string())),
+    "size" => Box::new(Term::Identifier("size".to_string())),
+    "space" => Box::new(Term::Identifier("space".to_string())),
+    "token" => Box::new(Term::Identifier("token".to_string())),
+    "type" => Box::new(Term::Identifier("type".to_string())),
+    "unimpl" => Box::new(Term::Identifier("unimpl".to_string())),
+    "values" => Box::new(Term::Identifier("values".to_string())),
+    "variables" => Box::new(Term::Identifier("variables".to_string())),
+    "wordsize" => Box::new(Term::Identifier("wordsize".to_string())),
 }
 
-strict_id = {
-    Identifier,
+strict_id: Box<Term> = {
+    Identifier => Box::new(Term::Identifier(<>.to_string())),
 }
 
-integer = {
-    HexInt,
-    DecInt,
-    BinInt,
+integer: Box<Term> = {
+    HexInt => Box::new(Term::HexConstant(<>.to_string())),
+    DecInt => Box::new(Term::DecConstant(<>.to_string())),
+    BinInt => Box::new(Term::BinConstant(<>.to_string())),
 }

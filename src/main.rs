@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env::args};
 
-use sleigh_parser::parser::lexer::Tokenizer;
+use sleigh_parser::parser::{lexer::Tokenizer, grammar::SpecParser};
 use sleigh_preprocessor::SleighPreprocessor;
 
 fn main() {
@@ -23,7 +23,6 @@ fn main() {
     println!("{:?}", definitions);
 
     let tokens = Tokenizer::new(&writer);
-    for token in tokens {
-        println!("{:?}", token);
-    }
+    let spec = SpecParser::new().parse(&writer, tokens);
+    println!("{:#?}", spec);
 }
