@@ -1,4 +1,5 @@
 use super::lexer::{LexicalError, Token};
+use super::ast::{Term, Endian};
 
 grammar<'input>(input: &'input str);
 
@@ -84,7 +85,7 @@ extern {
     }
 }
 
-pub spec = {
+pub Spec = {
     endiandef definition_or_constructorlike*,
 }
 
@@ -94,18 +95,18 @@ definition_or_constructorlike = {
 }
 
 endiandef = {
-    "define" "endian" "=" endian ";",
+    "define" "endian" "=" <endian> ";",
 }
 
-endian = {
-    "big",
-    "little",
+endian: Endian = {
+    "big" => Endian::Big,
+    "little" => Endian::Little,
 }
 
 definition = {
     aligndef ";",
-    // tokendef SEMI,
-    // contextdef SEMI,
+    // tokendef ";",
+    // contextdef ";",
     // spacedef SEMI,
     // varnodedef SEMI,
     // bitrangedef SEMI,
@@ -117,6 +118,51 @@ definition = {
 
 aligndef = {
     "define" "alignment" "=" integer,
+}
+
+tokendef = {
+    "define" "token" identifier "(" integer ")" fielddefs,
+}
+
+fielddefs = {
+    fielddef*,
+}
+
+fielddef = {
+    strict_id "=" "(" integer "," integer ")" fieldmods,
+}
+
+fieldmods = {
+    fieldmod*,
+}
+
+fieldmod = {
+    "signed",
+    "hex",
+    "dec",
+}
+
+contextfielddefs = {
+    contextfielddef*,
+}
+
+contextfielddef = {
+    identifier "=" "(" integer "," integer ")" contextfieldmods,
+}
+
+contextfieldmods = {
+    contextfieldmod*,
+}
+
+contextfieldmod = {
+    "signed",
+    "noflow",
+    "hex",
+    "dec",
+}
+
+contextdef = {
+    "define" "context" identifier contextfielddefs,
 }
 
 // constructorlike = {
@@ -141,27 +187,49 @@ aligndef = {
 //     identifier (COMMA identifier)*,
 // }
 
-// identifier = {
-// 	KEY_SPACE,
-// 	KEY_TOKEN,
-// 	KEY_TYPE,
-// 	KEY_UNIMPL,
-// 	KEY_VALUES,
-// 	KEY_VARIABLES,
-// 	KEY_WORDSIZE,
-// }
+identifier = {
+    strict_id,
+    key_as_id,
+}
 
-// strict_id = {
-//     IDENTIFIER,
-// }
+key_as_id: &'input str = {
+    "alignment" => "alignment",
+    "attach" => "attach",
+    "big" => "big",
+    "bitrange" => "bitrange",
+    "build" => "build",
+    "call" => "call",
+    "context" => "context",
+    "crossbuild" => "crossbuild",
+    "dec" => "dec",
+    "default" => "default",
+    "define" => "define",
+    "endian" => "endian",
+    "export" => "export",
+    "goto" => "goto",
+    "hex" => "hex",
+    "little" => "little",
+    "local" => "local",
+    "macro" => "macro",
+    "names" => "names",
+    "noflow" => "noflow",
+    "offset" => "offset",
+    "pcodeop" => "pcodeop",
+    "return" => "return",
+    "signed" => "signed",
+    "size" => "size",
+    "space" => "space",
+    "token" => "token",
+    "type" => "type",
+    "unimpl" => "unimpl",
+    "values" => "values",
+    "variables" => "variables",
+    "wordsize" => "wordsize",
+}
 
-// cpp_comment: () = {
-//     CPPCOMMENT =>? Err(
-//         ParseError::User {
-//             error: Error::Parsing("Detected CPP comment".to_string()),
-//         }
-//     ),
-// };
+strict_id = {
+    Identifier,
+}
 
 integer = {
     HexInt,

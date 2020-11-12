@@ -18,6 +18,7 @@ pub enum Token<'input> {
     })]
     #[regex(r"#[^\n\r]*\r?\n?", |lex|{
         lex.extras.inc_lineno();
+        logos::Skip
     })]
     LineComment,
     #[token("//")]
