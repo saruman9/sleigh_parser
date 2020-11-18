@@ -643,7 +643,7 @@ printpiece = {
     | qstring
     | special
 }
-identifier_is = _{ !(RES_IS) ~ (strict_id | key_as_id) }
+identifier_is = _{ !(RES_IS ~ !ASCII_ALPHANUMERIC) ~ (strict_id | key_as_id) }
 
 whitespace = { WHITESPACE }
 
