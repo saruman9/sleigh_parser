@@ -24,6 +24,9 @@ fn main() {
         Ok(parser) => {
             println!("{:#?}", parser.tokens());
         }
-        Err(e) => eprintln!("{}", e),
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
     }
 }
