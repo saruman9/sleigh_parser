@@ -4,7 +4,7 @@ sleigh = _{ SOI ~ spec ~ EOI }
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 WHITESPACE = _{ "\r" | " " | "\t" | "\n" }
 
-spec = { PP_POSITION* ~ endiandef ~ ( definition | constructorlike | PP_POSITION )* }
+spec = { endiandef ~ ( definition | constructorlike )* }
 endiandef = { KEY_DEFINE ~ KEY_ENDIAN ~ ASSIGN ~ endian ~ SEMI }
 endian = { KEY_BIG | KEY_LITTLE }
 
@@ -299,10 +299,6 @@ key_as_id = {
 }
 strict_id = _{ IDENTIFIER }
 integer = _{ HEX_INT | BIN_INT | DEC_INT }
-
-// Preprocessor-generated directives
-PP_POSITION = ${ PP_ESCAPE ~ (!(NEWLINE | PP_ESCAPE ) ~ ANY)* ~ PP_ESCAPE }
-PP_ESCAPE = _{ "\x08" }
 
 // Reserved words and keywords
 RES_WITH = _{ "with" }
