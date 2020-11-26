@@ -12,7 +12,7 @@ lazy_static = "1.4.0"
 regex = "1.4.2"
 log = "0.4.11"
 env_logger = "0.8.1"
-sleigh_preprocessor = { git = "ssh://git@github.com/saruman9/sleigh_preprocessor.git", branch = "master" }
+sleigh_preprocessor = { path = "../sleigh_preprocessor" }
 
 [build-dependencies]
 lalrpop = "0.19.1"
