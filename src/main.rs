@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use pest::Parser;
 use sleigh_preprocessor::SleighPreprocessor;
 
-use sleigh_parser::{Rule, SleighParser};
+use sleigh_parser::SleighParser;
 
 fn main() {
     let mut writer = String::new();
@@ -14,10 +13,15 @@ fn main() {
         std::process::exit(1);
     }
 
-    println!("{:#?}", preprocessor.definitions());
-    println!("{:#?}", preprocessor.locations());
+    let parser = SleighParser::new(
+        preprocessor.take_definitions(),
+        preprocessor.take_locations(),
+    );
 
-    match SleighParser::parse(Rule::sleigh, &writer) {
+    println!("{:#?}", parser.definitions());
+    println!("{:#?}", parser.locations());
+
+    match parser.parse(&writer) {
         Ok(parser) => {
             println!("{:#?}", parser.tokens());
         }
