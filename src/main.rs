@@ -18,13 +18,8 @@ fn main() {
         preprocessor.take_locations(),
     );
 
-    println!("{:#?}", parser.definitions());
-    println!("{:#?}", parser.locations());
-
     match parser.parse(&writer) {
-        Ok(parser) => {
-            println!("{:#?}", parser.tokens());
-        }
+        Ok(_) => {}
         Err(e) => {
             eprintln!("{}", e);
             std::process::exit(1);

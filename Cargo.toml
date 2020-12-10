@@ -8,3 +8,4 @@ edition = "2018"
 pest = "2.1.3"
 pest_derive = "2.1.0"
 sleigh_preprocessor = { path = "../sleigh_preprocessor" }
+codespan-reporting = "0.11.0"
