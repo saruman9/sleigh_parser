@@ -105,7 +105,7 @@ pub enum Term {
     Slessequal,
     Space,
     Spacemods,
-    Spec(Box<Term>, Vec<Box<Term>>),
+    Spec(Box<Term>, Vec<Term>),
     Srem,
     Sright,
     String,

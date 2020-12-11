@@ -90,7 +90,7 @@ pub Spec: Box<Term> = {
     <e:endiandef> <def:definition_or_constructorlike*> => Box::new(Term::Spec(e, def)),
 }
 
-definition_or_constructorlike: Box<Term> = {
+definition_or_constructorlike: Term = {
     definition,
     // constructorlike,
 }
@@ -104,7 +104,7 @@ endian: Box<Endian> = {
     "little" => Box::new(Endian::Little),
 }
 
-definition: Box<Term> = {
+definition: Term = {
     <aligndef> ";",
     <tokendef> ";",
     // <contextdef> ";",
@@ -117,12 +117,12 @@ definition: Box<Term> = {
     // varattach SEMI,
 }
 
-aligndef: Box<Term> = {
-    "define" "alignment" "=" <integer> => Box::new(Term::Alignment(<>)),
+aligndef: Term = {
+    "define" "alignment" "=" <integer> => Term::Alignment(<>),
 }
 
-tokendef: Box<Term> = {
-    "define" "token" <i:identifier> "(" <int:integer> ")" <f:fielddefs> => Box::new(Term::Token(i, int, f)),
+tokendef: Term = {
+    "define" "token" <i:identifier> "(" <int:integer> ")" <f:fielddefs> => Term::Token(i, int, f),
 }
 
 fielddefs: Box<Term> = {
