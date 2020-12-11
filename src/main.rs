@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env::args};
 
-use sleigh_parser::parser::{lexer::Tokenizer, grammar::SpecParser};
+use sleigh_parser::parser::{grammar::SpecParser, lexer::Tokenizer};
 use sleigh_preprocessor::SleighPreprocessor;
 
 fn main() {
@@ -9,18 +9,17 @@ fn main() {
         .init();
 
     let mut writer = String::new();
-    let mut definitions = HashMap::new();
+    let definitions = HashMap::new();
     let file_path = args().nth(1).unwrap();
-    let mut sleigh_preprocessor = SleighPreprocessor::new(definitions, &file_path);
+    let mut sleigh_preprocessor = SleighPreprocessor::new(definitions, &file_path, false);
 
-    definitions = match sleigh_preprocessor.process(&mut writer) {
-        Ok(def) => def,
+    match sleigh_preprocessor.process(&mut writer) {
+        Ok(_) => {}
         Err(e) => {
             eprintln!("{}", e);
             std::process::exit(1);
         }
-    };
-    println!("{:?}", definitions);
+    }
 
     let tokens = Tokenizer::new(&writer);
     let spec = SpecParser::new().parse(&writer, tokens);
