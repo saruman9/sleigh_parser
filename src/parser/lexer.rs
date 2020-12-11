@@ -13,11 +13,13 @@ pub enum Token<'input> {
     // WhiteSpaces
     #[regex(r"[ \t]+", logos::skip)]
     #[regex(r"\r?\n?", |lex| {
-        lex.extras.inc_lineno();
+        lex.extras.inc_global_lineno();
+        lex.extras.inc_local_lineno();
         logos::Skip
     })]
     #[regex(r"#[^\n\r]*\r?\n?", |lex|{
-        lex.extras.inc_lineno();
+        lex.extras.inc_global_lineno();
+        lex.extras.inc_local_lineno();
         logos::Skip
     })]
     LineComment,
@@ -33,8 +35,8 @@ pub enum Token<'input> {
             .collect();
         if split.len() == 2 {
             lex.extras
-                .set_location(split[0], split[1].parse().unwrap(), lex.span());
-            trace!("{}, {:?}", lex.slice(), lex.extras);
+                .set_location(split[0], split[1].parse().unwrap(), lex.span().start);
+            trace!("{:?}", lex.extras);
         }
         logos::Skip
     })]
@@ -254,10 +256,10 @@ impl LexicalError {
             error: error.to_string(),
             filename: location.filename().to_string(),
             span: Span {
-                start: span.start - location.span().start,
-                end: span.end - location.span().end,
+                start: span.start - location.pos(),
+                end: span.end - location.pos(),
             },
-            lineno: location.lineno(),
+            lineno: location.local_lineno(),
         }
     }
 }
@@ -347,7 +349,14 @@ impl<'input> Iterator for Tokenizer<'input> {
                     self.lex.extras.clone(),
                 )))
             }
-            _ => Some(Ok((extras.clone(), token, extras.clone()))),
+            _ => {
+                let mut start = extras.clone();
+                start.set_pos(self.lex.span().start - extras.pos());
+                let mut end = extras.clone();
+                end.set_pos(self.lex.span().end - extras.pos());
+                trace!("{:?} {:?} {:?}", start, token, end);
+                Some(Ok((start, token, end)))
+            }
         }
     }
 }
