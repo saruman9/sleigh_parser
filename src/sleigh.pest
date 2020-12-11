@@ -4,11 +4,11 @@ sleigh = _{ SOI ~ spec ~ EOI }
 COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 WHITESPACE = _{ "\r" | " " | "\t" | "\n" }
 
-spec = { endiandef ~ ( definition | constructorlike )* }
+spec = { endiandef ~ (definition | constructorlike)* }
 endiandef = { KEY_DEFINE ~ KEY_ENDIAN ~ ASSIGN ~ endian ~ SEMI }
-endian = { KEY_BIG | KEY_LITTLE }
+endian = _{ KEY_BIG | KEY_LITTLE }
 
-definition = {
+definition = _{
       (
           aligndef
         | tokendef
@@ -25,19 +25,17 @@ definition = {
 
 aligndef = { KEY_DEFINE ~ KEY_ALIGNMENT ~ ASSIGN ~ integer }
 
-tokendef = { KEY_DEFINE ~ KEY_TOKEN ~ identifier ~ LPAREN ~ integer ~ RPAREN ~ fielddefs }
-fielddefs = { fielddef* }
-fielddef = { strict_id ~ ASSIGN ~ LPAREN ~ integer ~ COMMA ~ integer ~ RPAREN ~ fieldmods }
-fieldmods = { fieldmod* }
+tokendef = { KEY_DEFINE ~ KEY_TOKEN ~ IDENTIFIER ~ LPAREN ~ integer ~ RPAREN ~ fielddef* }
+fielddef = { IDENTIFIER ~ ASSIGN ~ LPAREN ~ integer ~ COMMA ~ integer ~ RPAREN ~ fieldmod* }
 fieldmod = {
       KEY_SIGNED
     | KEY_HEX
     | KEY_DEC
 }
 
-contextdef = { KEY_DEFINE ~ KEY_CONTEXT ~ identifier ~ contextfielddefs }
+contextdef = { KEY_DEFINE ~ KEY_CONTEXT ~ IDENTIFIER ~ contextfielddefs }
 contextfielddefs = { contextfielddef* }
-contextfielddef = { identifier ~ ASSIGN ~ LPAREN ~ integer ~ COMMA ~ integer ~ RPAREN
+contextfielddef = { IDENTIFIER ~ ASSIGN ~ LPAREN ~ integer ~ COMMA ~ integer ~ RPAREN
       ~ contextfieldmods
 }
 contextfieldmods = { contextfieldmod* }
@@ -48,7 +46,7 @@ contextfieldmod = {
     | KEY_DEC
 }
 
-spacedef = { KEY_DEFINE ~ KEY_SPACE ~ identifier ~ spacemods }
+spacedef = { KEY_DEFINE ~ KEY_SPACE ~ IDENTIFIER ~ spacemods }
 spacemods = { spacemod* }
 spacemod = {
       typemod
@@ -57,16 +55,16 @@ spacemod = {
     | KEY_DEFAULT
 }
 typemod = { KEY_TYPE ~ ASSIGN ~ type_ }
-type_ = _{ identifier }
+type_ = _{ IDENTIFIER }
 sizemod = { KEY_SIZE ~ ASSIGN ~ integer }
 wordsizemod = { KEY_WORDSIZE ~ ASSIGN ~ integer }
 
-varnodedef = { KEY_DEFINE ~ identifier ~ KEY_OFFSET ~ ASSIGN ~ integer ~ KEY_SIZE ~ ASSIGN
+varnodedef = { KEY_DEFINE ~ IDENTIFIER ~ KEY_OFFSET ~ ASSIGN ~ integer ~ KEY_SIZE ~ ASSIGN
       ~ integer ~ identifierlist }
 
 bitrangedef = { KEY_DEFINE ~ KEY_BITRANGE ~ bitranges }
 bitranges = { bitrange+ }
-bitrange = { identifier ~ ASSIGN ~ identifier ~ LBRACKET ~ integer ~ COMMA ~ integer
+bitrange = { IDENTIFIER ~ ASSIGN ~ IDENTIFIER ~ LBRACKET ~ integer ~ COMMA ~ integer
       ~ RBRACKET
 }
 
@@ -108,14 +106,14 @@ constructorlike = {
     | withblock
     | constructor
 }
-macrodef = { KEY_MACRO ~ identifier ~ LPAREN ~ arguments ~ RPAREN ~ semanticbody }
+macrodef = { KEY_MACRO ~ IDENTIFIER ~ LPAREN ~ arguments ~ RPAREN ~ semanticbody }
 arguments = { oplist? }
-oplist = { identifier ~ (COMMA ~ identifier)* }
+oplist = { IDENTIFIER ~ (COMMA ~ IDENTIFIER)* }
 
 withblock = { RES_WITH ~ id_or_nil ~ COLON ~ bitpat_or_nil ~ contextblock ~ LBRACE
       ~ constructorlikelist ~ RBRACE
 }
-id_or_nil = { identifier? }
+id_or_nil = { IDENTIFIER? }
 bitpat_or_nil = { bitpattern? }
 constructorlikelist = { def_or_conslike* }
 def_or_conslike = {
@@ -130,7 +128,7 @@ ctorsemantic = {
 }
 bitpattern = { pequation }
 ctorstart = {
-      identifier ~ display
+      IDENTIFIER ~ display
     | display
 }
 
@@ -138,7 +136,7 @@ contextblock = { (LBRACKET ~ ctxstmts ~ RBRACKET)? }
 ctxstmts = { ctxstmt* }
 ctxstmt = { (ctxassign | pfuncall) ~ SEMI }
 ctxassign = { ctxlval ~ ASSIGN ~ pexpression }
-ctxlval = { identifier }
+ctxlval = { IDENTIFIER }
 pfuncall = { pexpression_apply }
 pequation = { pequation_or }
 pequation_or = { pequation_seq ~ (pequation_or_op ~ pequation_seq)* }
@@ -159,7 +157,7 @@ pequation_atomic = {
       constraint
       | LPAREN ~ pequation ~ RPAREN
 }
-constraint = { identifier ~ (constraint_op ~ pexpression2)? }
+constraint = { IDENTIFIER ~ (constraint_op ~ pexpression2)? }
 constraint_op = {
       ASSIGN
     | NOTEQUAL
@@ -211,10 +209,10 @@ pexpression_func = {
       pexpression_apply
       | pexpression_term
 }
-pexpression_apply = { identifier ~ pexpression_operands }
+pexpression_apply = { IDENTIFIER ~ pexpression_operands }
 pexpression_operands = { LPAREN ~ (pexpression ~ (COMMA ~ pexpression)*)? ~ RPAREN }
 pexpression_term = {
-      identifier
+      IDENTIFIER
     | integer
     | LPAREN ~ pexpression ~ RPAREN
 }
@@ -252,52 +250,16 @@ pexpression2_func = {
       pexpression2_apply
     |	pexpression2_term
 }
-pexpression2_apply = { identifier ~ pexpression2_operands }
+pexpression2_apply = { IDENTIFIER ~ pexpression2_operands }
 pexpression2_operands = { LPAREN ~ (pexpression2 ~ (COMMA ~ pexpression2)*)? ~ RPAREN }
 pexpression2_term = {
-      identifier
+      IDENTIFIER
     |	integer
     |	LPAREN ~ pexpression2 ~ RPAREN
 }
 
-id_or_wild = { identifier | wildcard }
+id_or_wild = { IDENTIFIER | wildcard }
 wildcard = { UNDERSCORE }
-identifier = _{ strict_id | key_as_id }
-key_as_id = {
-      KEY_ALIGNMENT
-    | KEY_ATTACH
-    | KEY_BIG
-    | KEY_BITRANGE
-    | KEY_BUILD
-    | KEY_CALL
-    | KEY_CONTEXT
-    | KEY_CROSSBUILD
-    | KEY_DEC
-    | KEY_DEFAULT
-    | KEY_DEFINE
-    | KEY_ENDIAN
-    | KEY_EXPORT
-    | KEY_GOTO
-    | KEY_HEX
-    | KEY_LITTLE
-    | KEY_LOCAL
-    | KEY_MACRO
-    | KEY_NAMES
-    | KEY_NOFLOW
-    | KEY_OFFSET
-    | KEY_PCODEOP
-    | KEY_RETURN
-    | KEY_SIGNED
-    | KEY_SIZE
-    | KEY_SPACE
-    | KEY_TOKEN
-    | KEY_TYPE
-    | KEY_UNIMPL
-    | KEY_VALUES
-    | KEY_VARIABLES
-    | KEY_WORDSIZE
-}
-strict_id = _{ IDENTIFIER }
 integer = _{ HEX_INT | BIN_INT | DEC_INT }
 
 // Reserved words and keywords
@@ -311,13 +273,13 @@ KEY_BUILD = _{ "build" }
 KEY_CALL = _{ "call" }
 KEY_CONTEXT = _{ "context" }
 KEY_CROSSBUILD = _{ "crossbuild" }
-KEY_DEC = _{ "dec" }
+KEY_DEC = { "dec" }
 KEY_DEFAULT = { "default" }
 KEY_DEFINE = _{ "define" }
 KEY_ENDIAN = _{ "endian" }
 KEY_EXPORT = _{ "export" }
 KEY_GOTO = _{ "goto" }
-KEY_HEX = _{ "hex" }
+KEY_HEX = { "hex" }
 KEY_LITTLE = { "little" }
 KEY_LOCAL = _{ "local" }
 KEY_MACRO = _{ "macro" }
@@ -326,7 +288,7 @@ KEY_NOFLOW = _{ "noflow" }
 KEY_OFFSET = _{ "offset" }
 KEY_PCODEOP = _{ "pcodeop" }
 KEY_RETURN = _{ "return" }
-KEY_SIGNED = _{ "signed" }
+KEY_SIGNED = { "signed" }
 KEY_SIZE = _{ "size" }
 KEY_SPACE = _{ "space" }
 KEY_TOKEN = _{ "token" }
@@ -392,7 +354,7 @@ SPEC_AND = _{ "$and" }
 SPEC_XOR = _{ "$xor" }
 
 // IDs, Literals
-IDENTIFIER = @{ !(UNDERSCORE ~ &(!IDENTIFIER | EOI)) ~ ALPHA_UP ~ (ALPHA_UP | ASCII_DIGIT )* }
+IDENTIFIER = @{ !(UNDERSCORE ~ &(!IDENTIFIER | EOI)) ~ ALPHA_UP ~ (ALPHA_UP | ASCII_DIGIT)* }
 ALPHA_UP = { ASCII_ALPHA | "_" | "." }
 qstring = ${ "\"" ~ STRING ~ "\"" }
 STRING = @{ (ESCAPE | STRING_TEXT)* }
@@ -417,8 +379,8 @@ semantic = { code_block }
 code_block = { statements? }
 statements = { statement+ }
 
-label = { LESS ~ identifier ~ GREAT }
-section_def = { LEFT ~ identifier ~ RIGHT }
+label = { LESS ~ IDENTIFIER ~ GREAT }
+section_def = { LEFT ~ IDENTIFIER ~ RIGHT }
 statement = {
       (
           assignment
@@ -483,29 +445,29 @@ assignment = {
     | lvalue ~ ASSIGN ~ expr
 }
 
-declaration = { KEY_LOCAL ~ identifier ~ (COLON ~ constant)? }
+declaration = { KEY_LOCAL ~ IDENTIFIER ~ (COLON ~ constant)? }
 lvalue = {
       sembitrange
     | identifier_if ~ (COLON ~ constant)?
     | sizedstar ~ expr
 }
-sembitrange = { identifier ~ LBRACKET ~ constant ~ COMMA ~ constant ~ RBRACKET }
-sizedstar = { ASTERISK ~ ((LBRACKET ~ identifier ~ RBRACKET)? ~ (COLON ~ constant)?)? }
+sembitrange = { IDENTIFIER ~ LBRACKET ~ constant ~ COMMA ~ constant ~ RBRACKET }
+sizedstar = { ASTERISK ~ ((LBRACKET ~ IDENTIFIER ~ RBRACKET)? ~ (COLON ~ constant)?)? }
 funcall = { expr_apply }
-build_stmt = { KEY_BUILD ~ identifier }
-crossbuild_stmt = { KEY_CROSSBUILD ~ varnode ~ COMMA ~ identifier }
+build_stmt = { KEY_BUILD ~ IDENTIFIER }
+crossbuild_stmt = { KEY_CROSSBUILD ~ varnode ~ COMMA ~ IDENTIFIER }
 goto_stmt = { KEY_GOTO ~ jumpdest }
 jumpdest = {
-      identifier
+      IDENTIFIER
     | LBRACKET ~ expr ~ RBRACKET
     | integer
-    | constant ~ LBRACKET ~ identifier ~ RBRACKET
+    | constant ~ LBRACKET ~ IDENTIFIER ~ RBRACKET
     | label
 }
 cond_stmt = { RES_IF ~ expr ~ goto_stmt }
 call_stmt = { KEY_CALL ~ jumpdest }
 return_stmt = { KEY_RETURN ~ LBRACKET ~ expr ~ RBRACKET }
-sizedexport = { sizedstar ~ identifier }
+sizedexport = { sizedstar ~ IDENTIFIER }
 export = {
       KEY_EXPORT ~ sizedexport
     | KEY_EXPORT ~ varnode
@@ -527,10 +489,10 @@ expr_and = { expr_eq ~ (expr_and_op ~ expr_eq)* }
 expr_and_op = { AMPERSAND }
 expr_eq = { expr_comp ~ (expr_eq_op ~ expr_comp)* }
 expr_eq_op = {
-      EQUAL
-    | NOTEQUAL
+      FNOTEQUAL
     | FEQUAL
-    | FNOTEQUAL
+    | NOTEQUAL
+    | EQUAL
 }
 expr_comp = { expr_shift ~ (expr_compare_op ~ expr_shift)* }
 expr_compare_op = {
@@ -562,21 +524,21 @@ expr_add_op = {
 }
 expr_mult = { expr_unary ~ (expr_mult_op ~ expr_unary)* }
 expr_mult_op = {
-      ASTERISK
-    |	SLASH
-    |	PERCENT
-    |	SDIV
-    |	SREM
-    |	FMULT
-    |	FDIV
+      SDIV
+    | SREM
+    | FMULT
+    | FDIV
+    | ASTERISK
+    | SLASH
+    | PERCENT
 }
 expr_unary = { expr_unary_op? ~ expr_func }
 expr_unary_op = {
-      EXCLAIM
-    |	TILDE
-    |	MINUS
-    |	FMINUS
-    |	sizedstar
+      sizedstar
+    | FMINUS
+    | EXCLAIM
+    | TILDE
+    | MINUS
 }
 expr_func = {
       expr_apply
@@ -592,10 +554,10 @@ expr_term = {
 varnode = {
       integer ~ (COLON ~ constant)?
     | AMPERSAND ~ (COLON ~ constant)? ~ varnode
-    | identifier ~ (COLON ~ constant)?
+    | IDENTIFIER ~ (COLON ~ constant)?
 }
 constant = { integer }
-identifier_if = _{ !(RES_IF) ~ (strict_id | key_as_id) }
+identifier_if = _{ !(RES_IF) ~ IDENTIFIER }
 
 // Floating-point comparisons
 FEQUAL = { "f==" }
@@ -639,7 +601,7 @@ printpiece = {
     | qstring
     | special
 }
-identifier_is = _{ !(RES_IS ~ !ASCII_ALPHANUMERIC) ~ (strict_id | key_as_id) }
+identifier_is = _{ !(RES_IS ~ !ASCII_ALPHANUMERIC) ~ IDENTIFIER }
 
 whitespace = { WHITESPACE }
 
