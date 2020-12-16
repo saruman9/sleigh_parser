@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use log::trace;
 use logos::{Lexer, Logos, Span};
 
@@ -27,19 +29,7 @@ pub enum Token<'input> {
     CPPComment,
 
     // Preprocessor
-    #[regex(r"\x08[^\n\x08]*\x08", |lex| {
-        let split: Vec<&str> = lex
-            .slice()
-            .trim_matches('\x08')
-            .split("###")
-            .collect();
-        if split.len() == 2 {
-            lex.extras
-                .set_location(split[0], split[1].parse().unwrap(), lex.span().start);
-            trace!("{:?}", lex.extras);
-        }
-        logos::Skip
-    })]
+    #[regex(r"\x08[^\n\x08]*\x08")]
     PPPosition,
 
     // Reserved words and keywords
@@ -234,12 +224,18 @@ pub enum QString<'input> {
 
 pub struct Tokenizer<'input> {
     lex: Lexer<'input, Token<'input>>,
+    locations: HashMap<String, (usize, usize)>,
+    current_location: Location,
 }
 
 impl<'input> Tokenizer<'input> {
     pub fn new(input: &'input str) -> Self {
         let lex = Token::lexer(input);
-        Self { lex }
+        Self {
+            lex,
+            locations: Default::default(),
+            current_location: Default::default(),
+        }
     }
 }
 
@@ -256,8 +252,8 @@ impl LexicalError {
             error: error.to_string(),
             filename: location.filename().to_string(),
             span: Span {
-                start: span.start - location.pos(),
-                end: span.end - location.pos(),
+                start: span.start - location.global_pos(),
+                end: span.end - location.global_pos(),
             },
             lineno: location.local_lineno(),
         }
@@ -268,94 +264,134 @@ impl<'input> Iterator for Tokenizer<'input> {
     type Item = Result<(Location, Token<'input>, Location), LexicalError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let token = self.lex.next()?;
-        let span = self.lex.span();
-        let extras = &self.lex.extras;
-        match token {
-            Token::UnexpectedToken => Some(Err(LexicalError::new(
-                format!("Unknown token: {}", self.lex.slice()),
-                span,
-                extras,
-            ))),
-            Token::CPPComment => Some(Err(LexicalError::new(
-                "C++ commentaries are not allowed",
-                span,
-                extras,
-            ))),
-            Token::StartQString => {
-                let mut result = String::new();
-                let mut lex = self.lex.to_owned().morph();
-                loop {
-                    match lex.next() {
-                        Some(QString::String(_)) => result += lex.slice(),
-                        Some(QString::EscapeCharacter(_)) => {
-                            match lex.slice().chars().nth(1).unwrap() {
-                                'b' => result.push('\u{0008}'),
-                                't' => result.push('\t'),
-                                'n' => result.push('\n'),
-                                'f' => result.push('\u{000c}'),
-                                'r' => result.push('\r'),
-                                '"' => result.push('"'),
-                                '\'' => result.push('\''),
-                                '\\' => result.push('\\'),
-                                c => {
-                                    return Some(Err(LexicalError::new(
-                                        format!("Unknown escape character: {}", c),
-                                        lex.span(),
-                                        &lex.extras,
-                                    )))
+        loop {
+            let token = self.lex.next()?;
+            let span = self.lex.span();
+            let location = &self.current_location;
+            match token {
+                Token::UnexpectedToken => {
+                    return Some(Err(LexicalError::new(
+                        format!("Unknown token: {}", self.lex.slice()),
+                        span,
+                        location,
+                    )))
+                }
+                Token::CPPComment => {
+                    return Some(Err(LexicalError::new(
+                        "C++ commentaries are not allowed",
+                        span,
+                        location,
+                    )))
+                }
+                Token::StartQString => {
+                    let mut result = String::new();
+                    let mut lex = self.lex.to_owned().morph();
+                    loop {
+                        match lex.next() {
+                            Some(QString::String(_)) => result += lex.slice(),
+                            Some(QString::EscapeCharacter(_)) => {
+                                match lex.slice().chars().nth(1).unwrap() {
+                                    'b' => result.push('\u{0008}'),
+                                    't' => result.push('\t'),
+                                    'n' => result.push('\n'),
+                                    'f' => result.push('\u{000c}'),
+                                    'r' => result.push('\r'),
+                                    '"' => result.push('"'),
+                                    '\'' => result.push('\''),
+                                    '\\' => result.push('\\'),
+                                    c => {
+                                        return Some(Err(LexicalError::new(
+                                            format!("Unknown escape character: {}", c),
+                                            lex.span(),
+                                            &lex.extras,
+                                        )))
+                                    }
                                 }
                             }
-                        }
-                        Some(QString::UnicodeEscape) => {
-                            let slice = lex.slice();
-                            let hex = &slice[2..slice.len()];
-                            result.push(
-                                u32::from_str_radix(hex, 16)
-                                    .map(|c| std::char::from_u32(c).unwrap())
-                                    .unwrap(),
-                            );
-                        }
-                        Some(QString::OctalEscape) => {
-                            let slice = lex.slice();
-                            let oct = &slice[1..slice.len()];
-                            result.push(
-                                u32::from_str_radix(oct, 8)
-                                    .map(|c| std::char::from_u32(c).unwrap())
-                                    .unwrap(),
-                            );
-                        }
-                        Some(QString::EndString) => break,
-                        Some(QString::Error) => {
-                            return Some(Err(LexicalError::new(
-                                format!("Unexpected string: {}", lex.slice()),
-                                lex.span(),
-                                &lex.extras,
-                            )))
-                        }
-                        None => {
-                            return Some(Err(LexicalError::new(
-                                "Unclosed string",
-                                span.start..lex.span().end,
-                                &lex.extras,
-                            )))
+                            Some(QString::UnicodeEscape) => {
+                                let slice = lex.slice();
+                                let hex = &slice[2..slice.len()];
+                                result.push(
+                                    u32::from_str_radix(hex, 16)
+                                        .map(|c| std::char::from_u32(c).unwrap())
+                                        .unwrap(),
+                                );
+                            }
+                            Some(QString::OctalEscape) => {
+                                let slice = lex.slice();
+                                let oct = &slice[1..slice.len()];
+                                result.push(
+                                    u32::from_str_radix(oct, 8)
+                                        .map(|c| std::char::from_u32(c).unwrap())
+                                        .unwrap(),
+                                );
+                            }
+                            Some(QString::EndString) => break,
+                            Some(QString::Error) => {
+                                return Some(Err(LexicalError::new(
+                                    format!("Unexpected string: {}", lex.slice()),
+                                    lex.span(),
+                                    &lex.extras,
+                                )))
+                            }
+                            None => {
+                                return Some(Err(LexicalError::new(
+                                    "Unclosed string",
+                                    span.start..lex.span().end,
+                                    &lex.extras,
+                                )))
+                            }
                         }
                     }
+                    self.lex = lex.morph::<Token>();
+                    return Some(Ok((
+                        self.lex.extras.clone(),
+                        Token::QString(result),
+                        self.lex.extras.clone(),
+                    )));
                 }
-                self.lex = lex.morph::<Token>();
-                Some(Ok((
-                    self.lex.extras.clone(),
-                    Token::QString(result),
-                    self.lex.extras.clone(),
-                )))
-            }
-            _ => {
-                let mut start = extras.clone();
-                start.set_pos(self.lex.span().start - extras.pos());
-                let mut end = extras.clone();
-                end.set_pos(self.lex.span().end - extras.pos());
-                trace!("{:?} {:?} {:?}", start, token, end);
-                Some(Ok((start, token, end)))
+                Token::PPPosition => {
+                    let split: Vec<&str> =
+                        self.lex.slice().trim_matches('\x08').split("###").collect();
+                    if split.len() == 2 {
+                        let new_filename = split[0];
+                        let current_filename = location.filename();
+                        if current_filename.is_empty() {
+                            self.locations
+                                .insert(new_filename.to_string(), (span.end + 1, 1));
+                            self.current_location
+                                .set_location(new_filename, span.end + 1, 1);
+                            trace!("{:#?} {:#?}", self.locations, self.current_location,);
+                            continue;
+                        }
+                        let value = self.locations.get_mut(current_filename).unwrap();
+                        value.1 += span.end + 1 - value.0;
+                        value.0 = span.end + 1;
+
+                        let pos = self
+                            .locations
+                            .entry(new_filename.to_string())
+                            .or_insert((span.end + 1, 1));
+                        self.current_location
+                            .set_location(new_filename, span.end + 1, pos.1);
+
+                        trace!("{:#?} {:#?}", self.locations, self.current_location,);
+                    }
+                }
+                _ => {
+                    let mut start = location.clone();
+                    start.set_global_pos(self.lex.span().start);
+                    start.set_local_pos(
+                        location.local_pos() + self.lex.span().start - location.global_pos(),
+                    );
+                    let mut end = location.clone();
+                    end.set_global_pos(self.lex.span().end);
+                    end.set_local_pos(start.local_pos() + self.lex.slice().len());
+                    trace!("{:#?}", start);
+                    trace!("{:?}", token);
+                    trace!("{:#?}", end);
+                    return Some(Ok((start, token, end)));
+                }
             }
         }
     }

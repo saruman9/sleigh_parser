@@ -3,31 +3,40 @@ pub struct Location {
     filename: String,
     global_lineno: usize,
     local_lineno: usize,
-    pos: usize,
+    global_pos: usize,
+    local_pos: usize,
 }
 
 impl Location {
     pub(crate) fn set_location(
         &mut self,
         filename: impl Into<String>,
-        local_lineno: usize,
-        pos: usize,
+        global_pos: usize,
+        local_pos: usize,
     ) {
         self.filename = filename.into();
-        self.local_lineno = local_lineno;
-        self.pos = pos;
+        self.global_pos = global_pos;
+        self.local_pos = local_pos;
     }
 
     pub fn filename(&self) -> &str {
         &self.filename
     }
 
-    pub fn pos(&self) -> usize {
-        self.pos
+    pub fn global_pos(&self) -> usize {
+        self.global_pos
     }
 
-    pub(crate) fn set_pos(&mut self, pos: usize) {
-        self.pos = pos;
+    pub fn local_pos(&self) -> usize {
+        self.local_pos
+    }
+
+    pub(crate) fn set_global_pos(&mut self, pos: usize) {
+        self.global_pos = pos;
+    }
+
+    pub(crate) fn set_local_pos(&mut self, pos: usize) {
+        self.local_pos = pos;
     }
 
     pub(crate) fn inc_global_lineno(&mut self) {

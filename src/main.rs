@@ -50,7 +50,10 @@ fn main() {
                 let file = SimpleFile::new(start.filename(), &source);
                 let diagnostic = Diagnostic::error()
                     .with_message("parse error")
-                    .with_labels(vec![Label::primary((), start.pos()..end.pos())])
+                    .with_labels(vec![Label::primary(
+                        (),
+                        start.global_pos()..end.global_pos(),
+                    )])
                     .with_notes(vec![format!("expected: {:?}", expected)]);
                 println!("{}", &source);
                 term::emit(&mut term_writer.lock(), &config, &file, &diagnostic).unwrap();
