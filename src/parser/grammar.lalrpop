@@ -2,13 +2,13 @@ use super::lexer::{LexicalError, Token};
 use super::ast::{Endian, Term, FieldMod};
 use super::location;
 
-grammar<'input>(input: &'input str);
+grammar;
 
 extern {
     type Location = location::Location;
     type Error = LexicalError;
 
-    enum Token<'input> {
+    enum Token {
         "with" => Token::With,
         "alignment" => Token::Alignment,
         "attach" => Token::Attach,
@@ -78,11 +78,11 @@ extern {
         "$or" => Token::SpecOr,
         "$and" => Token::SpecAnd,
         "$xor" => Token::SpecXor,
-        Identifier => Token::Identifier(<&'input str>),
+        Identifier => Token::Identifier(<String>),
         QString => Token::QString(<String>),
-        DecInt => Token::DecInt(<&'input str>),
-        HexInt => Token::HexInt(<&'input str>),
-        BinInt => Token::BinInt(<&'input str>),
+        DecInt => Token::DecInt(<String>),
+        HexInt => Token::HexInt(<String>),
+        BinInt => Token::BinInt(<String>),
     }
 }
 
