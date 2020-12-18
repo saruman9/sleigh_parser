@@ -1,16 +1,26 @@
-use std::{fs::read_to_string, path::PathBuf};
+use std::{collections::HashMap, fs::read_to_string, path::PathBuf};
 
 use log::{debug, trace};
 use logos::Logos;
 use regex::Regex;
 
-use super::location::Location;
+use super::{conditional_helper::ConditionalHelper, location::Location};
+
+// TODO: Parse String to Tokens and add Location
+pub type Definitions = HashMap<
+    String,
+    (
+        Vec<Result<(Location, Token, Location), LexicalError>>,
+        String,
+    ),
+>;
 
 lazy_static::lazy_static! {
+    static ref EXPANSION_RE: Regex = Regex::new(r"\$\(([0-9A-Z_a-z]+)\)").unwrap();
     static ref INCLUDE_RE: Regex = Regex::new(r#"@include\s+"(.*)""#).unwrap();
-    static ref DEFINE1_RE: Regex = Regex::new(r#"^\s*@define\s+([0-9A-Z_a-z]+)\s+"(.*)"\s*$"#).unwrap();
-    static ref DEFINE2_RE: Regex = Regex::new(r"^\s*@define\s+([0-9A-Z_a-z]+)\s+(\S+)\s*$").unwrap();
-    static ref DEFINE3_RE: Regex = Regex::new(r"^\s*@define\s+([0-9A-Z_a-z]+)\s*$").unwrap();
+    static ref DEFINE_QSTRING: Regex = Regex::new(r#"@define\s+([0-9A-Z_a-z]+)\s+"(.*)"\s*"#).unwrap();
+    static ref DEFINE_STRING: Regex = Regex::new(r"@define\s+([0-9A-Z_a-z]+)\s+(\S+)\s*").unwrap();
+    static ref DEFINE: Regex = Regex::new(r"@define\s+([0-9A-Z_a-z]+)\s*").unwrap();
     static ref UNDEF_RE: Regex = Regex::new(r"^\s*@undef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
     static ref IFDEF_RE: Regex = Regex::new(r"^\s*@ifdef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
     static ref IFNDEF_RE: Regex = Regex::new(r"^\s*@ifndef\s+([0-9A-Z_a-z]+)\s*$").unwrap();
@@ -204,12 +214,12 @@ pub enum Token {
     BinInt(String),
 
     // Preprocessor
-    #[regex(r#"@define(?&w)+[0-9A-Z_a-z]+(?&w)+"[^"\n\r]*""#, |lex| lex.slice().to_string())]
-    PreprocDefineQString(String),
-    #[regex(r"@define(?&w)+[0-9A-Z_a-z]+(?&w)+[\S]+", |lex| lex.slice().to_string())]
-    PreprocDefineString(String),
-    #[regex(r"@define(?&w)+[0-9A-Z_a-z]+", |lex| lex.slice().to_string())]
-    PreprocDefine(String),
+    #[regex(r#"@define(?&w)+[0-9A-Z_a-z]+(?&w)+"[^"\n\r]*""#)]
+    PreprocDefineQString,
+    #[regex(r"@define(?&w)+[0-9A-Z_a-z]+(?&w)+[\S]+")]
+    PreprocDefineString,
+    #[regex(r"@define(?&w)+[0-9A-Z_a-z]+")]
+    PreprocDefine,
     #[regex(r#"@include(?&w)+"[^"\n\r]*""#)]
     PreprocInclude,
 }
@@ -233,17 +243,77 @@ pub enum QString {
     EndString,
 }
 
+#[derive(Debug)]
 pub struct Tokenizer {
+    definitions: Option<Definitions>,
     location: Location,
+    ifstack: Vec<ConditionalHelper>,
     input: String,
 }
 
 impl Tokenizer {
     pub fn new(slaspec_path: impl Into<PathBuf>) -> Self {
         let file_path = slaspec_path.into();
-        let input = read_to_string(&file_path).unwrap();
-        let location = Location::new(file_path.display().to_string(), 1);
-        Self { location, input }
+        Self {
+            definitions: Some(HashMap::new()),
+            location: Location::new(file_path.display().to_string(), 1),
+            ifstack: Vec::new(),
+            input: read_to_string(&file_path).unwrap(),
+        }
+    }
+
+    pub fn from_string<S>(name: S, input: S, location: Location) -> Self
+    where
+        S: Into<String>,
+    {
+        Self {
+            definitions: Some(HashMap::new()),
+            location: location.with_definition(name, 1),
+            ifstack: Vec::new(),
+            input: input.into(),
+        }
+    }
+
+    pub fn with_definitions(mut self, definitions: &Definitions) -> Self {
+        debug!("definitions: {:?}", definitions);
+        self.definitions = Some(definitions.clone());
+        self
+    }
+
+    pub fn definitions(&self) -> &Definitions {
+        self.definitions.as_ref().unwrap()
+    }
+
+    fn handle_definitions_in_include<S: Into<String>>(
+        &self,
+        input: S,
+        start: Location,
+        end: Location,
+    ) -> Result<String, LexicalError> {
+        let mut input = input.into();
+        let mut output = String::new();
+        while let Some(m) = EXPANSION_RE.captures(&input) {
+            // TODO: Locate the expression with `Location`
+            let expansion_match = m.get(0).unwrap();
+            let expansion = expansion_match.as_str();
+            trace!("found expansion: {}", expansion);
+            let variable = m.get(1).unwrap().as_str();
+            let start = start.clone();
+            let end = end.clone();
+            let definiton = self
+                .definitions
+                .as_ref()
+                .unwrap()
+                .get(variable)
+                .ok_or_else(move || {
+                    LexicalError::new(format!("unknown variable: {}", variable), start, end)
+                })?;
+            output.push_str(input.get(0..expansion_match.start()).unwrap());
+            output.push_str(&definiton.1);
+            input = input.get(expansion_match.end()..).unwrap().to_string();
+        }
+        output.push_str(&input);
+        Ok(output)
     }
 
     pub fn tokenize(&mut self) -> Vec<Result<(Location, Token, Location), LexicalError>> {
@@ -357,6 +427,10 @@ impl Tokenizer {
                             }
                             QString::EndString => {
                                 self.location.add_pos(1);
+                                lexer = lexer_qstr.morph::<Token>();
+                                let ok = Ok((start, Token::QString(result), self.location.clone()));
+                                debug!("{:?}", ok);
+                                tokens.push(ok);
                                 break;
                             }
                             QString::Error => {
@@ -372,40 +446,32 @@ impl Tokenizer {
                             }
                         }
                     }
-                    lexer = lexer_qstr.morph::<Token>();
-                    let ok = Ok((start, Token::QString(result), self.location.clone()));
-                    debug!("{:?}", ok);
-                    tokens.push(ok);
                 }
                 Token::LineComment | Token::Whitespace => {
                     self.location.add_pos(lexer.slice().len());
                     continue;
                 }
-                // Token::PreprocDefineQString(_) => {
-                //     let start = self.location.clone();
-                //     self.location.add_pos(self.lexer().slice().len());
-                //     let end = self.location.clone();
-                //     return Some(Ok((start, token, end)));
-                // }
-                // Token::PreprocDefineString(_) => {
-                //     let start = self.location.clone();
-                //     self.location.add_pos(self.lexer().slice().len());
-                //     let end = self.location.clone();
-                //     return Some(Ok((start, token, end)));
-                // }
-                // Token::PreprocDefine(_) => {
-                //     let start = self.location.clone();
-                //     self.location.add_pos(self.lexer().slice().len());
-                //     let end = self.location.clone();
-                //     return Some(Ok((start, token, end)));
-                // }
                 Token::PreprocInclude => {
                     let slice = lexer.slice();
                     let start = self.location.clone();
                     self.location.add_pos(slice.len());
+                    let end = self.location.clone();
 
                     let m = INCLUDE_RE.captures(&slice).unwrap();
-                    let mut include_file_path = PathBuf::from(m.get(1).unwrap().as_str());
+                    let include_file_str = match self.handle_definitions_in_include(
+                        m.get(1).unwrap().as_str(),
+                        start.clone(),
+                        end.clone(),
+                    ) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            let err = Err(e);
+                            debug!("{:?}", err);
+                            tokens.push(err);
+                            continue;
+                        }
+                    };
+                    let mut include_file_path = PathBuf::from(include_file_str);
                     if include_file_path.is_relative() {
                         include_file_path = PathBuf::from(self.location.path())
                             .parent()
@@ -419,15 +485,73 @@ impl Tokenizer {
                                 include_file_path.display()
                             ),
                             start.clone(),
-                            self.location.clone(),
+                            end,
                         ));
                         debug!("{:?}", err);
                         tokens.push(err);
+                        continue;
                     }
-                    let ok = (start, token, self.location.clone());
-                    debug!("{:?}, '{}'", ok, include_file_path.display());
-                    let mut tokenizer = Tokenizer::new(include_file_path);
+                    let ok = (start, token, end);
+                    debug!("include file: '{}', {:?}", include_file_path.display(), ok);
+                    let mut tokenizer =
+                        Tokenizer::new(include_file_path).with_definitions(self.definitions());
                     tokens.extend(tokenizer.tokenize());
+                }
+                Token::PreprocDefineQString => {
+                    let mut start = self.location.clone();
+                    self.location.add_pos(lexer.slice().len());
+
+                    let slice = lexer.slice();
+                    let m = DEFINE_QSTRING.captures(slice).unwrap();
+                    let key = m.get(1).unwrap().as_str().to_string();
+                    let value_match = m.get(2).unwrap();
+                    start.add_pos(value_match.start());
+                    let value = value_match.as_str().to_string();
+                    let mut tokenizer = Tokenizer::from_string(key.clone(), value.clone(), start)
+                        .with_definitions(self.definitions());
+                    let tokens = tokenizer.tokenize();
+                    debug!(
+                        "@define key: '{}' value: '{}' tokens: '{:?}'",
+                        &key, &value, &tokens
+                    );
+                    self.definitions
+                        .as_mut()
+                        .unwrap()
+                        .insert(key, (tokens, value));
+                }
+                Token::PreprocDefineString => {
+                    let mut start = self.location.clone();
+                    self.location.add_pos(lexer.slice().len());
+
+                    let slice = lexer.slice();
+                    let m = DEFINE_STRING.captures(slice).unwrap();
+                    let key = m.get(1).unwrap().as_str().to_string();
+                    let value_match = m.get(2).unwrap();
+                    start.add_pos(value_match.start());
+                    let value = value_match.as_str().to_string();
+                    let mut tokenizer = Tokenizer::from_string(key.clone(), value.clone(), start)
+                        .with_definitions(self.definitions());
+                    let tokens = tokenizer.tokenize();
+                    debug!(
+                        "@define key: '{}' value: '{}' tokens: '{:?}'",
+                        &key, &value, &tokens
+                    );
+                    self.definitions
+                        .as_mut()
+                        .unwrap()
+                        .insert(key, (tokens, value));
+                }
+                Token::PreprocDefine => {
+                    self.location.add_pos(lexer.slice().len());
+
+                    let slice = lexer.slice();
+                    let m = DEFINE.captures(slice).unwrap();
+                    let key = m.get(1).unwrap().as_str().to_string();
+                    debug!("@define key: '{}'", key);
+                    self.definitions
+                        .as_mut()
+                        .unwrap()
+                        .insert(key, (Vec::new(), String::new()));
                 }
                 _ => {
                     let start = self.location.clone();
@@ -442,7 +566,7 @@ impl Tokenizer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LexicalError {
     error: String,
     start: Location,
