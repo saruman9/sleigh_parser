@@ -231,9 +231,9 @@ pub enum Token {
     PreprocIfDef,
     #[regex(r"@ifndef(?&w)+[0-9A-Z_a-z]+")]
     PreprocIfNDef,
-    #[regex(r"@if(?&w)+[^\n\r]*")]
+    #[regex(r"@if(?&w)+[^\n\r#]*")]
     PreprocIf,
-    #[regex(r"@elif(?&w)+[^\n\r]*")]
+    #[regex(r"@elif(?&w)+[^\n\r#]*")]
     PreprocElIf,
     #[token("@endif")]
     PreprocEndIf,
