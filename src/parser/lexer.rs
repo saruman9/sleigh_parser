@@ -292,7 +292,7 @@ impl Tokenizer {
         Self {
             definitions: Some(HashMap::new()),
             location: location.clone().with_definition(name),
-            ifstack: Vec::new(),
+            ifstack: vec![ConditionalHelper::new(false, false, false, true)],
         }
     }
 
@@ -442,9 +442,6 @@ impl Tokenizer {
                     let mut result = String::new();
                     let mut lexer_qstr = lexer.to_owned().morph::<QString>();
                     let (start, _) = self.add_pos(1);
-                    if !self.is_copy() {
-                        continue;
-                    }
                     loop {
                         let token = match lexer_qstr.next() {
                             Some(t) => {
@@ -513,6 +510,9 @@ impl Tokenizer {
                             QString::EndString => {
                                 let (_, end) = self.add_pos(1);
                                 lexer = lexer_qstr.morph::<Token>();
+                                if !self.is_copy() {
+                                    break;
+                                }
                                 let ok = Ok((start, Token::QString(result), end));
                                 debug!("{:?}", ok);
                                 tokens.push(ok);
