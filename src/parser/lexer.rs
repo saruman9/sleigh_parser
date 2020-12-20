@@ -271,6 +271,8 @@ pub struct Tokenizer {
 
 impl Tokenizer {
     pub fn new(slaspec_path: impl Into<PathBuf>) -> Self {
+        let slaspec_path = slaspec_path.into();
+        debug!(r#"new tokenizer "{}""#, slaspec_path.display());
         Self {
             definitions: Some(HashMap::new()),
             location: Location::new(slaspec_path),
@@ -279,12 +281,14 @@ impl Tokenizer {
     }
 
     pub fn with_definitions(mut self, definitions: &Definitions) -> Self {
-        debug!("definitions: {:?}", definitions);
+        debug!("with definitions: {:?}", definitions);
         self.definitions = Some(definitions.clone());
         self
     }
 
     fn from_definition(name: impl Into<String>, location: &Location) -> Self {
+        let name = name.into();
+        debug!(r#"new tokenizer from definition "{}""#, name);
         Self {
             definitions: Some(HashMap::new()),
             location: location.clone().with_definition(name),
@@ -326,14 +330,14 @@ impl Tokenizer {
         let expression = expression.as_ref();
         if self.is_handled() {
             self.set_copy(false);
-            trace!("already handled");
+            debug!("already handled");
         } else if !self.parse_expression(expression, start, end)? {
             self.set_copy(false);
-            trace!("expression \"{}\" is FALSE", expression);
+            debug!("expression \"{}\" is FALSE", expression);
         } else {
             self.set_copy(true);
             self.set_handled(true);
-            trace!("expression \"{}\" is true", expression);
+            debug!("expression \"{}\" is true", expression);
         }
         Ok(())
     }
@@ -637,30 +641,42 @@ impl Tokenizer {
                 }
                 Token::PreprocIfDef => {
                     let slice = lexer.slice();
-                    self.add_pos(slice.len());
+                    let (start, end) = self.add_pos(slice.len());
                     self.enter_if();
 
                     let key = IFDEF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
                     if self.contains_definition(key) {
                         self.set_handled(true);
-                        debug!(r#"@ifdef "{}": yes"#, key);
+                        debug!(
+                            r#"@ifdef "{}": yes (start: {:?}, end: {:?})"#,
+                            key, &start, &end
+                        );
                     } else {
                         self.set_copy(false);
-                        debug!(r#"@ifdef "{}": NO"#, key);
+                        debug!(
+                            r#"@ifdef "{}": NO (start: {:?}, end: {:?})"#,
+                            key, &start, &end
+                        );
                     }
                 }
                 Token::PreprocIfNDef => {
                     let slice = lexer.slice();
-                    self.add_pos(slice.len());
+                    let (start, end) = self.add_pos(slice.len());
                     self.enter_if();
 
                     let key = IFNDEF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
                     if self.contains_definition(key) {
                         self.set_copy(false);
-                        debug!(r#"@ifndef "{}": NO"#, key);
+                        debug!(
+                            r#"@ifndef "{}": NO (start: {:?}, end: {:?})"#,
+                            key, &start, &end
+                        );
                     } else {
                         self.set_handled(true);
-                        debug!(r#"@ifndef "{}": yes"#, key);
+                        debug!(
+                            r#"@ifndef "{}": yes (start: {:?}, end: {:?})"#,
+                            key, &start, &end
+                        );
                     }
                 }
                 Token::PreprocIf => {
@@ -669,7 +685,7 @@ impl Tokenizer {
                     self.enter_if();
 
                     let m = IF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
-                    debug!(r#"@if... "{}""#, m);
+                    debug!(r#"@if... "{}" (start: {:?}, end: {:?})"#, m, &start, &end);
                     if let Err(e) = self.handle_expression(m, &start, &end) {
                         debug!("{:?}", e);
                         tokens.push(Err(e));
@@ -684,7 +700,7 @@ impl Tokenizer {
                     }
 
                     let m = ELIF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
-                    debug!(r#"@elif... "{}""#, m);
+                    debug!(r#"@elif... "{}" (start: {:?}, end: {:?})"#, m, &start, &end);
                     if let Err(e) = self.handle_expression(m, &start, &end) {
                         debug!("{:?}", e);
                         tokens.push(Err(e));
@@ -692,7 +708,7 @@ impl Tokenizer {
                 }
                 Token::PreprocEndIf => {
                     let (start, end) = self.add_pos(lexer.slice().len());
-                    debug!(r"@endif");
+                    debug!(r"@endif (start: {:?}, end: {:?})", &start, &end);
                     if let Err(e) = self.leave_if(&start, &end) {
                         debug!("{:?}", e);
                         tokens.push(Err(e));
@@ -700,7 +716,7 @@ impl Tokenizer {
                 }
                 Token::PreprocElse => {
                     let (start, end) = self.add_pos(lexer.slice().len());
-                    debug!(r"@else");
+                    debug!(r"@else (start: {:?}, end: {:?})", &start, &end);
                     if let Err(e) = self.enter_else(&start, &end) {
                         debug!("{:?}", e);
                         tokens.push(Err(e));
@@ -716,7 +732,8 @@ impl Tokenizer {
                     }
 
                     let expansion_tokens = self.handle_expansion(slice, &start, &end);
-                    debug!("expansion: {:?}", expansion_tokens);
+                    debug!("expansion (start: {:?}, end: {:?})", &start, &end);
+                    debug!("tokens: {:?}", expansion_tokens);
                     tokens.extend(expansion_tokens);
                 }
                 _ => {
