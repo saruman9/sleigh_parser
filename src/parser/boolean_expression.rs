@@ -8,7 +8,7 @@ use pest::{
 use pest_derive::Parser;
 
 use super::{
-    lexer::{Definitions, LexicalError},
+    lexer::{Definitions, LexicalError, LexicalResult},
     location::Location,
 };
 
@@ -16,14 +16,12 @@ use super::{
 #[grammar = "./parser/boolean_expression.pest"]
 pub struct BooleanExpressionParser;
 
-type Result<T> = std::result::Result<T, LexicalError>;
-
 pub fn parse_boolean_expression(
     input: &str,
     definitions: &Definitions,
     start: &Location,
     end: &Location,
-) -> Result<bool> {
+) -> LexicalResult<bool> {
     let mut expr = BooleanExpressionParser::parse(Rule::boolean_expression, input)
         .map_err(|e| LexicalError::new(format!("{}", e), start, end))?;
     parse_expr(expr.next().unwrap(), definitions, start, end)
@@ -34,7 +32,7 @@ fn parse_expr(
     definitions: &Definitions,
     start: &Location,
     end: &Location,
-) -> Result<bool> {
+) -> LexicalResult<bool> {
     debug_assert_eq!(pair.as_rule(), Rule::expr);
     let climber = PrecClimber::new(vec![
         Operator::new(Rule::OR_OP, Assoc::Left),
@@ -50,9 +48,9 @@ fn consume(
     definitions: &Definitions,
     start: &Location,
     end: &Location,
-) -> Result<bool> {
+) -> LexicalResult<bool> {
     let primary = |pair| consume(pair, climber, definitions, start, end);
-    let infix = |l: Result<bool>, op: Pair<Rule>, r: Result<bool>| {
+    let infix = |l: LexicalResult<bool>, op: Pair<Rule>, r: LexicalResult<bool>| {
         let l = l?;
         let r = r?;
         let result = match op.as_rule() {
@@ -76,7 +74,7 @@ fn parse_boolean_clause(
     definitions: &Definitions,
     start: &Location,
     end: &Location,
-) -> Result<bool> {
+) -> LexicalResult<bool> {
     debug_assert_eq!(pair.as_rule(), Rule::boolean_clause);
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
@@ -93,7 +91,7 @@ fn parse_expr_not(
     definitions: &Definitions,
     start: &Location,
     end: &Location,
-) -> Result<bool> {
+) -> LexicalResult<bool> {
     debug_assert_eq!(pair.as_rule(), Rule::expr_not);
     parse_expr_paren(pair.into_inner().next().unwrap(), definitions, start, end).map(ops::Not::not)
 }
@@ -103,7 +101,7 @@ fn parse_expr_paren(
     definitions: &Definitions,
     start: &Location,
     end: &Location,
-) -> Result<bool> {
+) -> LexicalResult<bool> {
     debug_assert_eq!(pair.as_rule(), Rule::expr_paren);
     parse_expr(pair.into_inner().next().unwrap(), definitions, start, end)
 }
@@ -113,7 +111,7 @@ fn parse_expr_eq(
     definitions: &Definitions,
     start: &Location,
     end: &Location,
-) -> Result<bool> {
+) -> LexicalResult<bool> {
     debug_assert_eq!(pair.as_rule(), Rule::expr_eq);
     let mut pairs = pair.into_inner();
     let l = parse_expr_term(pairs.next().unwrap(), definitions, start, end)?;
@@ -127,7 +125,7 @@ fn parse_expr_eq(
     Ok(result)
 }
 
-fn parse_expr_defined(pair: Pair<Rule>, definitions: &Definitions) -> Result<bool> {
+fn parse_expr_defined(pair: Pair<Rule>, definitions: &Definitions) -> LexicalResult<bool> {
     debug_assert_eq!(pair.as_rule(), Rule::expr_defined);
     let pair = pair.into_inner();
     Ok(definitions.contains_key(pair.as_str()))
@@ -138,7 +136,7 @@ fn parse_expr_term(
     definitions: &Definitions,
     start: &Location,
     end: &Location,
-) -> Result<String> {
+) -> LexicalResult<String> {
     debug_assert_eq!(pair.as_rule(), Rule::expr_term);
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {

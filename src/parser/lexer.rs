@@ -9,14 +9,10 @@ use super::{
     location::Location,
 };
 
+pub type LexicalResult<T> = Result<T, LexicalError>;
+pub type SpannedToken<Token, Location> = LexicalResult<(Location, Token, Location)>;
 // TODO: Parse String to Tokens and add Location
-pub type Definitions = HashMap<
-    String,
-    (
-        Vec<Result<(Location, Token, Location), LexicalError>>,
-        String,
-    ),
->;
+pub type Definitions = HashMap<String, (Vec<SpannedToken<Token, Location>>, String)>;
 
 lazy_static::lazy_static! {
     static ref EXPANSION_RE: Regex = Regex::new(r"\$\(([0-9A-Z_a-z]+)\)").unwrap();
@@ -263,20 +259,20 @@ pub enum QString {
 }
 
 #[derive(Debug)]
-pub struct Tokenizer {
+pub struct Lexer {
     definitions: Option<Definitions>,
-    location: Location,
     ifstack: Vec<ConditionalHelper>,
+    location: Location,
 }
 
-impl Tokenizer {
+impl Lexer {
     pub fn new(slaspec_path: impl Into<PathBuf>) -> Self {
         let slaspec_path = slaspec_path.into();
         debug!(r#"new tokenizer "{}""#, slaspec_path.display());
         Self {
-            definitions: Some(HashMap::new()),
-            location: Location::new(slaspec_path),
+            definitions: Some(Definitions::new()),
             ifstack: vec![ConditionalHelper::new(false, false, false, true)],
+            location: Location::new(slaspec_path),
         }
     }
 
@@ -290,9 +286,9 @@ impl Tokenizer {
         let name = name.into();
         debug!(r#"new tokenizer from definition "{}""#, name);
         Self {
-            definitions: Some(HashMap::new()),
-            location: location.clone().with_definition(name),
+            definitions: Some(Definitions::new()),
             ifstack: vec![ConditionalHelper::new(false, false, false, true)],
+            location: location.clone().with_definition(name),
         }
     }
 
@@ -326,7 +322,7 @@ impl Tokenizer {
         expression: impl AsRef<str>,
         start: &Location,
         end: &Location,
-    ) -> Result<(), LexicalError> {
+    ) -> LexicalResult<()> {
         let expression = expression.as_ref();
         if self.is_handled() {
             self.set_copy(false);
@@ -347,7 +343,7 @@ impl Tokenizer {
         expression: impl AsRef<str>,
         start: &Location,
         end: &Location,
-    ) -> Result<bool, LexicalError> {
+    ) -> LexicalResult<bool> {
         let expression = expression.as_ref();
         parse_boolean_expression(expression, self.definitions(), start, end)
     }
@@ -357,7 +353,7 @@ impl Tokenizer {
         input: impl Into<String>,
         start: &Location,
         end: &Location,
-    ) -> Result<String, LexicalError> {
+    ) -> LexicalResult<String> {
         let mut input = input.into();
         let mut output = String::new();
         while let Some(m) = EXPANSION_RE.captures(&input) {
@@ -381,7 +377,7 @@ impl Tokenizer {
         input: impl AsRef<str>,
         start: &Location,
         end: &Location,
-    ) -> Vec<Result<(Location, Token, Location), LexicalError>> {
+    ) -> Vec<SpannedToken<Token, Location>> {
         let mut output = Vec::new();
         let variable = EXPANSION_RE
             .captures(input.as_ref())
@@ -403,10 +399,7 @@ impl Tokenizer {
         definiton.0.clone()
     }
 
-    pub fn tokenize(
-        &mut self,
-        input: impl AsRef<str>,
-    ) -> Vec<Result<(Location, Token, Location), LexicalError>> {
+    pub fn tokenize(&mut self, input: impl AsRef<str>) -> Vec<SpannedToken<Token, Location>> {
         let mut tokens = Vec::new();
         let mut lexer = Token::lexer(input.as_ref());
         loop {
@@ -586,7 +579,7 @@ impl Tokenizer {
                     let ok = (start, token, end);
                     debug!("include file: '{}', {:?}", include_file_path.display(), ok);
                     let mut tokenizer =
-                        Tokenizer::new(&include_file_path).with_definitions(self.definitions());
+                        Lexer::new(&include_file_path).with_definitions(self.definitions());
                     tokens.extend(tokenizer.tokenize(read_to_string(&include_file_path).unwrap()));
                     self.definitions = Some(tokenizer.take_definitions());
                 }
@@ -763,7 +756,7 @@ impl Tokenizer {
         let value = value.unwrap().into();
 
         let mut tokenizer =
-            Tokenizer::from_definition(&key, &start).with_definitions(self.definitions());
+            Lexer::from_definition(&key, &start).with_definitions(self.definitions());
         let tokens = tokenizer.tokenize(&value);
         debug!(
             r#"@define key: "{}" value: "{}" tokens: "{:?}""#,
@@ -783,7 +776,7 @@ impl Tokenizer {
             .push(ConditionalHelper::new(true, false, false, self.is_copy()));
     }
 
-    fn enter_elif(&mut self, start: &Location, end: &Location) -> Result<(), LexicalError> {
+    fn enter_elif(&mut self, start: &Location, end: &Location) -> LexicalResult<()> {
         if !self.is_in_if() {
             return Err(LexicalError::new(
                 "elif outside of IF* directive",
@@ -797,7 +790,7 @@ impl Tokenizer {
         Ok(())
     }
 
-    fn leave_if(&mut self, start: &Location, end: &Location) -> Result<(), LexicalError> {
+    fn leave_if(&mut self, start: &Location, end: &Location) -> LexicalResult<()> {
         if !self.is_in_if() {
             return Err(LexicalError::new("not in IF* directive", start, end));
         }
@@ -805,7 +798,7 @@ impl Tokenizer {
         Ok(())
     }
 
-    fn enter_else(&mut self, start: &Location, end: &Location) -> Result<(), LexicalError> {
+    fn enter_else(&mut self, start: &Location, end: &Location) -> LexicalResult<()> {
         if !self.is_in_if() {
             return Err(LexicalError::new(
                 "else outside of IF* directive",
