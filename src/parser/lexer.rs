@@ -131,6 +131,7 @@ pub enum Token {
     #[token("_")]
     Underscore,
     #[token(":")]
+    PrintBlock,
     Colon,
     #[token(",")]
     Comma,
@@ -237,6 +238,12 @@ pub enum Token {
     PreprocElse,
     #[regex(r"\$\(([0-9A-Z_a-z]+)\)")]
     PreprocExpansion,
+
+    // Print block
+    Char(char),
+    Is,
+    SymbolString(String),
+    WhitespacePrint,
 }
 
 #[derive(Logos, Debug, Clone)]
@@ -256,6 +263,57 @@ pub enum QString {
     OctalEscape,
     #[token("\"")]
     EndString,
+}
+
+#[derive(Logos, Debug, Clone)]
+#[logos(subpattern w = r"[\t\v\f ]")]
+pub enum Print {
+    #[error]
+    Error,
+
+    // Preprocessor
+    #[regex(r#"@define(?&w)+[0-9A-Z_a-z]+(?&w)+"[^"\n\r]*""#)]
+    PreprocDefineQString,
+    #[regex(r"@define(?&w)+[0-9A-Z_a-z]+(?&w)+[\S]+")]
+    PreprocDefineString,
+    #[regex(r"@define(?&w)+[0-9A-Z_a-z]+")]
+    PreprocDefine,
+    #[regex(r#"@include(?&w)+"[^"\n\r]*""#)]
+    PreprocInclude,
+    #[regex(r"@undef(?&w)+[0-9A-Z_a-z]+")]
+    PreprocUndef,
+    #[regex(r"@ifdef(?&w)+[0-9A-Z_a-z]+")]
+    PreprocIfDef,
+    #[regex(r"@ifndef(?&w)+[0-9A-Z_a-z]+")]
+    PreprocIfNDef,
+    #[regex(r"@if(?&w)+[^\n\r#]*")]
+    PreprocIf,
+    #[regex(r"@elif(?&w)+[^\n\r#]*")]
+    PreprocElIf,
+    #[token("@endif")]
+    PreprocEndIf,
+    #[token("@else")]
+    PreprocElse,
+    #[regex(r"\$\(([0-9A-Z_a-z]+)\)")]
+    PreprocExpansion,
+
+    #[regex(r#"[~!@#$%&*()\-=+\[\]{}|;:<>?,/0-9]"#, |lex| lex.slice().chars().next().unwrap())]
+    Char(char),
+    #[token("^")]
+    Caret,
+    #[token("is")]
+    Is,
+    #[regex(r"[a-zA-Z_.][a-zA-Z0-9_.]*", |lex| lex.slice().to_string())]
+    SymbolString(String),
+    #[regex(r#""([^"]|"")*""#, |lex| {
+        let slice = lex.slice();
+        slice.get(1..slice.len() - 1).unwrap().to_string()
+    })]
+    QString(String),
+    #[regex(r"[\r \t\v]+")]
+    Whitespace,
+    #[regex(r"\n")]
+    Newline,
 }
 
 #[derive(Debug)]
@@ -430,6 +488,306 @@ impl Lexer {
                     ));
                     debug!("{:?}", err);
                     tokens.push(err);
+                }
+                Token::PrintBlock => {
+                    let mut lexer_print = lexer.to_owned().morph::<Print>();
+                    let (start, end) = self.add_pos(1);
+                    let ok = Ok((start.clone(), Token::Colon, end));
+                    debug!("{:?}", ok);
+                    tokens.push(ok);
+                    loop {
+                        let token = match lexer_print.next() {
+                            Some(t) => {
+                                trace!("{:?}", t);
+                                t
+                            }
+                            None => {
+                                let (_, end) = self.add_pos(lexer_print.slice().len());
+                                let err =
+                                    Err(LexicalError::new("Unclosed print block", &start, &end));
+                                debug!("{:?}", err);
+                                tokens.push(err);
+                                break;
+                            }
+                        };
+                        match token {
+                            Print::PreprocInclude => {
+                                let slice = lexer_print.slice();
+                                let (start, end) = self.add_pos(slice.len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+
+                                let input = INCLUDE_RE
+                                    .captures(&slice)
+                                    .unwrap()
+                                    .get(1)
+                                    .unwrap()
+                                    .as_str();
+                                let include_file_str =
+                                    match self.handle_expansion_in_include(input, &start, &end) {
+                                        Ok(s) => s,
+                                        Err(e) => {
+                                            let err = Err(e);
+                                            debug!("{:?}", err);
+                                            tokens.push(err);
+                                            continue;
+                                        }
+                                    };
+                                let mut include_file_path = PathBuf::from(include_file_str);
+                                if include_file_path.is_relative() {
+                                    include_file_path = self
+                                        .location
+                                        .path()
+                                        .to_path_buf()
+                                        .parent()
+                                        .unwrap()
+                                        .join(include_file_path);
+                                }
+                                if !include_file_path.exists() {
+                                    let err = Err(LexicalError::new(
+                                        format!(
+                                            "included file \"{}\" does not exist",
+                                            include_file_path.display()
+                                        ),
+                                        &start,
+                                        &end,
+                                    ));
+                                    debug!("{:?}", err);
+                                    tokens.push(err);
+                                    continue;
+                                }
+                                let ok = (start, token, end);
+                                debug!("include file: '{}', {:?}", include_file_path.display(), ok);
+                                let mut tokenizer = Lexer::new(&include_file_path)
+                                    .with_definitions(self.definitions());
+                                tokens.extend(
+                                    tokenizer.tokenize(read_to_string(&include_file_path).unwrap()),
+                                );
+                                self.definitions = Some(tokenizer.take_definitions());
+                            }
+                            Print::PreprocDefineQString => {
+                                let slice = lexer_print.slice();
+                                let (mut start, _) = self.add_pos(slice.len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+
+                                let m = DEFINE_QSTRING_RE.captures(slice).unwrap();
+                                let key = m.get(1).unwrap().as_str();
+                                let value_match = m.get(2).unwrap();
+                                start.add_pos(value_match.start());
+                                let value = value_match.as_str();
+                                self.define(key, Some(value), &start);
+                            }
+                            Print::PreprocDefineString => {
+                                let slice = lexer_print.slice();
+                                let (mut start, _) = self.add_pos(slice.len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+
+                                let m = DEFINE_STRING_RE.captures(slice).unwrap();
+                                let key = m.get(1).unwrap().as_str();
+                                let value_match = m.get(2).unwrap();
+                                start.add_pos(value_match.start());
+                                let value = value_match.as_str();
+                                self.define(key, Some(value), &start);
+                            }
+                            Print::PreprocDefine => {
+                                let slice = lexer_print.slice();
+                                let (start, _) = self.add_pos(slice.len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+
+                                let m = DEFINE_RE.captures(slice).unwrap();
+                                let key = m.get(1).unwrap().as_str().to_string();
+                                self.define(key, None, &start);
+                            }
+                            Print::PreprocUndef => {
+                                let slice = lexer_print.slice();
+                                self.add_pos(slice.len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+
+                                let key =
+                                    UNDEF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                                self.undefine(key);
+                            }
+                            Print::PreprocIfDef => {
+                                let slice = lexer_print.slice();
+                                let (start, end) = self.add_pos(slice.len());
+                                self.enter_if();
+
+                                let key =
+                                    IFDEF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                                if self.contains_definition(key) {
+                                    self.set_handled(true);
+                                    debug!(
+                                        r#"@ifdef "{}": yes (start: {:?}, end: {:?})"#,
+                                        key, &start, &end
+                                    );
+                                } else {
+                                    self.set_copy(false);
+                                    debug!(
+                                        r#"@ifdef "{}": NO (start: {:?}, end: {:?})"#,
+                                        key, &start, &end
+                                    );
+                                }
+                            }
+                            Print::PreprocIfNDef => {
+                                let slice = lexer_print.slice();
+                                let (start, end) = self.add_pos(slice.len());
+                                self.enter_if();
+
+                                let key =
+                                    IFNDEF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                                if self.contains_definition(key) {
+                                    self.set_copy(false);
+                                    debug!(
+                                        r#"@ifndef "{}": NO (start: {:?}, end: {:?})"#,
+                                        key, &start, &end
+                                    );
+                                } else {
+                                    self.set_handled(true);
+                                    debug!(
+                                        r#"@ifndef "{}": yes (start: {:?}, end: {:?})"#,
+                                        key, &start, &end
+                                    );
+                                }
+                            }
+                            Print::PreprocIf => {
+                                let slice = lexer_print.slice();
+                                let (start, end) = self.add_pos(slice.len());
+                                self.enter_if();
+
+                                let m = IF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                                debug!(r#"@if... "{}" (start: {:?}, end: {:?})"#, m, &start, &end);
+                                if let Err(e) = self.handle_expression(m, &start, &end) {
+                                    debug!("{:?}", e);
+                                    tokens.push(Err(e));
+                                }
+                            }
+                            Print::PreprocElIf => {
+                                let slice = lexer_print.slice();
+                                let (start, end) = self.add_pos(slice.len());
+                                if let Err(e) = self.enter_elif(&start, &end) {
+                                    debug!("{:?}", e);
+                                    tokens.push(Err(e));
+                                }
+
+                                let m = ELIF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                                debug!(
+                                    r#"@elif... "{}" (start: {:?}, end: {:?})"#,
+                                    m, &start, &end
+                                );
+                                if let Err(e) = self.handle_expression(m, &start, &end) {
+                                    debug!("{:?}", e);
+                                    tokens.push(Err(e));
+                                }
+                            }
+                            Print::PreprocEndIf => {
+                                let (start, end) = self.add_pos(lexer_print.slice().len());
+                                debug!(r"@endif (start: {:?}, end: {:?})", &start, &end);
+                                if let Err(e) = self.leave_if(&start, &end) {
+                                    debug!("{:?}", e);
+                                    tokens.push(Err(e));
+                                }
+                            }
+                            Print::PreprocElse => {
+                                let (start, end) = self.add_pos(lexer_print.slice().len());
+                                debug!(r"@else (start: {:?}, end: {:?})", &start, &end);
+                                if let Err(e) = self.enter_else(&start, &end) {
+                                    debug!("{:?}", e);
+                                    tokens.push(Err(e));
+                                    continue;
+                                }
+                                self.set_copy(!self.is_handled());
+                            }
+                            Print::PreprocExpansion => {
+                                let slice = lexer_print.slice();
+                                let (start, end) = self.add_pos(slice.len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+
+                                let expansion_tokens = self.handle_expansion(slice, &start, &end);
+                                debug!("expansion (start: {:?}, end: {:?})", &start, &end);
+                                debug!("tokens: {:?}", expansion_tokens);
+                                tokens.extend(expansion_tokens);
+                            }
+                            Print::Char(ch) => {
+                                let (start, end) = self.add_pos(1);
+                                if !self.is_copy() {
+                                    continue;
+                                }
+                                let ok = Ok((start, Token::Char(ch), end));
+                                debug!("{:?}", ok);
+                                tokens.push(ok);
+                            }
+                            Print::Caret => {
+                                let (start, end) = self.add_pos(1);
+                                if !self.is_copy() {
+                                    continue;
+                                }
+                                let ok = Ok((start, Token::Caret, end));
+                                debug!("{:?}", ok);
+                                tokens.push(ok);
+                            }
+                            Print::Is => {
+                                let (start, end) = self.add_pos(2);
+                                if !self.is_copy() {
+                                    continue;
+                                }
+                                let ok = Ok((start, Token::Is, end));
+                                debug!("{:?}", ok);
+                                tokens.push(ok);
+                                lexer = lexer_print.morph::<Token>();
+                                break;
+                            }
+                            Print::SymbolString(symbol) => {
+                                let (start, end) = self.add_pos(lexer_print.slice().len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+                                let ok = Ok((start, Token::SymbolString(symbol), end));
+                                debug!("{:?}", ok);
+                                tokens.push(ok);
+                            }
+                            Print::QString(string) => {
+                                let (start, end) = self.add_pos(lexer_print.slice().len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+                                let ok = Ok((start, Token::QString(string), end));
+                                debug!("{:?}", ok);
+                                tokens.push(ok);
+                            }
+                            Print::Whitespace | Print::Newline => {
+                                let (start, end) = self.add_pos(lexer_print.slice().len());
+                                if !self.is_copy() {
+                                    continue;
+                                }
+                                let ok = Ok((start, Token::WhitespacePrint, end));
+                                debug!("{:?}", ok);
+                                tokens.push(ok);
+                            }
+                            Print::Error => {
+                                let slice = lexer_print.slice();
+                                let (start, end) = self.add_pos(slice.len());
+                                let err = Err(LexicalError::new(
+                                    format!(r#"Unexpected token in Print block: "{}""#, slice),
+                                    &start,
+                                    &end,
+                                ));
+                                debug!("{:?}", err);
+                                tokens.push(err);
+                                break;
+                            }
+                        }
+                    }
                 }
                 Token::StartQString => {
                     let mut result = String::new();
