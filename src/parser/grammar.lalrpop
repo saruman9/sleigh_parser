@@ -50,7 +50,6 @@ extern {
         ")" => Token::RParen,
         "..." => Token::Ellipsis,
         "_" => Token::Underscore,
-        ":" => Token::Colon,
         "," => Token::Comma,
         "!" => Token::Exclaim,
         "~" => Token::Tilde,
