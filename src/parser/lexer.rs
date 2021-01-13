@@ -45,7 +45,7 @@ pub enum Token {
 
     // Reserved words and keywords
     #[token("with")]
-    With,
+    PatternBlock,
     #[token("alignment")]
     Alignment,
     #[token("attach")]
@@ -276,6 +276,40 @@ pub enum Token {
     ValuesDef,
     VariablesDef,
     PcodeopDef,
+
+    // Pattern block
+    LBracePat,
+    UnimplPat,
+    GlobalsetPat,
+    RightPat,
+    LeftPat,
+    NotEqualPat,
+    LessEqualPat,
+    GreatEqualPat,
+    SpecAndPat,
+    SpecOrPat,
+    SpecXorPat,
+    EllipsisPat,
+    LBracketPat,
+    RBracketPat,
+    AmpersandPat,
+    AndPat,
+    PipePat,
+    OrPat,
+    CaretPat,
+    AssignPat,
+    LParenPat,
+    RParenPat,
+    CommaPat,
+    ColonPat,
+    SemiPat,
+    PlusPat,
+    MinusPat,
+    AsteriskPat,
+    SlashPat,
+    TildePat,
+    LessPat,
+    GreatPat,
 }
 
 #[derive(Logos, Debug, Clone)]
@@ -459,6 +493,115 @@ pub enum DefineBlock {
         slice.get(1..slice.len() - 1).unwrap().to_string()
     })]
     QString(String),
+    #[regex(r"[\r \t\v]+")]
+    Whitespace,
+    #[regex(r"\n")]
+    Newline,
+}
+
+#[derive(Logos, Debug, Clone)]
+#[logos(subpattern w = r"[\t\v\f ]")]
+pub enum PatternBlock {
+    #[error]
+    Error,
+
+    // Preprocessor
+    #[regex(r#"@define(?&w)+[0-9A-Z_a-z]+(?&w)+"[^"\n\r]*""#)]
+    PreprocDefineQString,
+    #[regex(r"@define(?&w)+[0-9A-Z_a-z]+(?&w)+[\S]+")]
+    PreprocDefineString,
+    #[regex(r"@define(?&w)+[0-9A-Z_a-z]+")]
+    PreprocDefine,
+    #[regex(r#"@include(?&w)+"[^"\n\r]*""#)]
+    PreprocInclude,
+    #[regex(r"@undef(?&w)+[0-9A-Z_a-z]+")]
+    PreprocUndef,
+    #[regex(r"@ifdef(?&w)+[0-9A-Z_a-z]+")]
+    PreprocIfDef,
+    #[regex(r"@ifndef(?&w)+[0-9A-Z_a-z]+")]
+    PreprocIfNDef,
+    #[regex(r"@if(?&w)+[^\n\r#]*")]
+    PreprocIf,
+    #[regex(r"@elif(?&w)+[^\n\r#]*")]
+    PreprocElIf,
+    #[token("@endif")]
+    PreprocEndIf,
+    #[token("@else")]
+    PreprocElse,
+    #[regex(r"\$\(([0-9A-Z_a-z]+)\)")]
+    PreprocExpansion,
+
+    // Main
+    #[token("{")]
+    LBrace,
+    #[token("unimpl")]
+    Unimpl,
+    #[token("globalset")]
+    Globalset,
+    #[token(">>")]
+    Right,
+    #[token("<<")]
+    Left,
+    #[token("!=")]
+    NotEqual,
+    #[token("<=")]
+    LessEqual,
+    #[token(">=")]
+    GreatEqual,
+    #[token("$and")]
+    SpecAnd,
+    #[token("$or")]
+    SpecOr,
+    #[token("$xor")]
+    SpecXor,
+    #[token("...")]
+    Ellipsis,
+    #[token("[")]
+    LBracket,
+    #[token("]")]
+    RBracket,
+    #[token("&")]
+    Ampersand,
+    #[token("|")]
+    Pipe,
+    #[token("^")]
+    Caret,
+    #[token("=")]
+    Assign,
+    #[token("(")]
+    LParen,
+    #[token(")")]
+    RParen,
+    #[token(",")]
+    Comma,
+    #[token(":")]
+    Colon,
+    #[token(";")]
+    Semi,
+    #[token("+")]
+    Plus,
+    #[token("-")]
+    Minus,
+    #[token("*")]
+    Asterisk,
+    #[token("/")]
+    Slash,
+    #[token("~")]
+    Tilde,
+    #[token("<")]
+    Less,
+    #[token(">")]
+    Great,
+    #[regex(r"#[^\n\r]*")]
+    Comment,
+    #[regex(r"[a-zA-Z_.][a-zA-Z0-9_.]*", |lex| lex.slice().to_string())]
+    Identifier(String),
+    #[regex(r"[0-9]|[1-9][0-9]+", |lex| lex.slice().to_string())]
+    DecInt(String),
+    #[regex(r"0x[0-9a-fA-F]+", |lex| lex.slice().to_string())]
+    HexInt(String),
+    #[regex(r"0b[01]+", |lex| lex.slice().to_string())]
+    BinInt(String),
     #[regex(r"[\r \t\v]+")]
     Whitespace,
     #[regex(r"\n")]
@@ -873,7 +1016,7 @@ impl Lexer {
         lexer: logos::Lexer<'a, Token>,
         tokens: &mut Vec<SpannedToken<Token, Location>>,
     ) -> logos::Lexer<'a, Token> {
-        let (start, end) = self.add_pos(1);
+        let (start, end) = self.add_pos(lexer.slice().len());
         if !self.is_copy() {
             return lexer;
         }
@@ -1111,14 +1254,328 @@ impl Lexer {
                 }
                 // Main
                 PrintBlock::Is => {
-                    let (start, end) = self.add_pos(2);
+                    return self.handle_pattern_block(lexer.morph::<Token>(), tokens);
+                }
+                _ => {
+                    let (start, end) = self.add_pos(lexer.slice().len());
                     if !self.is_copy() {
                         continue;
                     }
-                    let ok = Ok((start, Token::IsPrint, end));
+                    let ok = Ok((start, token.into(), end));
+                    debug!("{:?}", ok);
+                    tokens.push(ok);
+                }
+            }
+        }
+    }
+
+    fn handle_pattern_block<'a>(
+        &mut self,
+        lexer: logos::Lexer<'a, Token>,
+        tokens: &mut Vec<SpannedToken<Token, Location>>,
+    ) -> logos::Lexer<'a, Token> {
+        let (start, end) = self.add_pos(lexer.slice().len());
+        if !self.is_copy() {
+            return lexer;
+        }
+        let mut lexer = lexer.to_owned().morph::<PatternBlock>();
+        let ok = Ok((start.clone(), Token::PatternBlock, end));
+        debug!("{:?}", ok);
+        tokens.push(ok);
+
+        let mut is_action = false;
+        loop {
+            let token = match lexer.next() {
+                Some(t) => {
+                    trace!("{:?}", t);
+                    t
+                }
+                None => {
+                    let (_, end) = self.add_pos(lexer.slice().len());
+                    let err = Err(LexicalError::new("Unclosed Pattern block", &start, &end));
+                    debug!("{:?}", err);
+                    tokens.push(err);
+                    return lexer.morph::<Token>();
+                }
+            };
+            match token {
+                // Error
+                PatternBlock::Error => {
+                    let slice = lexer.slice();
+                    let (start, end) = self.add_pos(slice.len());
+                    let err = Err(LexicalError::new(
+                        format!(r#"Unexpected token in Pattern block: "{}""#, slice),
+                        &start,
+                        &end,
+                    ));
+                    debug!("{:?}", err);
+                    tokens.push(err);
+                    return lexer.morph::<Token>();
+                }
+                // Preprocessor
+                PatternBlock::PreprocInclude => {
+                    let slice = lexer.slice();
+                    let (start, end) = self.add_pos(slice.len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+
+                    let input = INCLUDE_RE
+                        .captures(&slice)
+                        .unwrap()
+                        .get(1)
+                        .unwrap()
+                        .as_str();
+                    let include_file_str =
+                        match self.handle_expansion_in_include(input, &start, &end) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                let err = Err(e);
+                                debug!("{:?}", err);
+                                tokens.push(err);
+                                continue;
+                            }
+                        };
+                    let mut include_file_path = PathBuf::from(include_file_str);
+                    if include_file_path.is_relative() {
+                        include_file_path = self
+                            .location
+                            .path()
+                            .to_path_buf()
+                            .parent()
+                            .unwrap()
+                            .join(include_file_path);
+                    }
+                    if !include_file_path.exists() {
+                        let err = Err(LexicalError::new(
+                            format!(
+                                "included file \"{}\" does not exist",
+                                include_file_path.display()
+                            ),
+                            &start,
+                            &end,
+                        ));
+                        debug!("{:?}", err);
+                        tokens.push(err);
+                        continue;
+                    }
+                    let ok = (start, token, end);
+                    debug!("include file: '{}', {:?}", include_file_path.display(), ok);
+                    let mut tokenizer =
+                        Lexer::new(&include_file_path).with_definitions(self.definitions());
+                    tokens.extend(tokenizer.tokenize(read_to_string(&include_file_path).unwrap()));
+                    self.definitions = Some(tokenizer.take_definitions());
+                }
+                PatternBlock::PreprocDefineQString => {
+                    let slice = lexer.slice();
+                    let (mut start, _) = self.add_pos(slice.len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+
+                    let m = DEFINE_QSTRING_RE.captures(slice).unwrap();
+                    let key = m.get(1).unwrap().as_str();
+                    let value_match = m.get(2).unwrap();
+                    start.add_pos(value_match.start());
+                    let value = value_match.as_str();
+                    self.define(key, Some(value), &start);
+                }
+                PatternBlock::PreprocDefineString => {
+                    let slice = lexer.slice();
+                    let (mut start, _) = self.add_pos(slice.len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+
+                    let m = DEFINE_STRING_RE.captures(slice).unwrap();
+                    let key = m.get(1).unwrap().as_str();
+                    let value_match = m.get(2).unwrap();
+                    start.add_pos(value_match.start());
+                    let value = value_match.as_str();
+                    self.define(key, Some(value), &start);
+                }
+                PatternBlock::PreprocDefine => {
+                    let slice = lexer.slice();
+                    let (start, _) = self.add_pos(slice.len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+
+                    let m = DEFINE_RE.captures(slice).unwrap();
+                    let key = m.get(1).unwrap().as_str().to_string();
+                    self.define(key, None, &start);
+                }
+                PatternBlock::PreprocUndef => {
+                    let slice = lexer.slice();
+                    self.add_pos(slice.len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+
+                    let key = UNDEF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                    self.undefine(key);
+                }
+                PatternBlock::PreprocIfDef => {
+                    let slice = lexer.slice();
+                    let (start, end) = self.add_pos(slice.len());
+                    self.enter_if();
+
+                    let key = IFDEF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                    if self.contains_definition(key) {
+                        self.set_handled(true);
+                        debug!(
+                            r#"@ifdef "{}": yes (start: {:?}, end: {:?})"#,
+                            key, &start, &end
+                        );
+                    } else {
+                        self.set_copy(false);
+                        debug!(
+                            r#"@ifdef "{}": NO (start: {:?}, end: {:?})"#,
+                            key, &start, &end
+                        );
+                    }
+                }
+                PatternBlock::PreprocIfNDef => {
+                    let slice = lexer.slice();
+                    let (start, end) = self.add_pos(slice.len());
+                    self.enter_if();
+
+                    let key = IFNDEF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                    if self.contains_definition(key) {
+                        self.set_copy(false);
+                        debug!(
+                            r#"@ifndef "{}": NO (start: {:?}, end: {:?})"#,
+                            key, &start, &end
+                        );
+                    } else {
+                        self.set_handled(true);
+                        debug!(
+                            r#"@ifndef "{}": yes (start: {:?}, end: {:?})"#,
+                            key, &start, &end
+                        );
+                    }
+                }
+                PatternBlock::PreprocIf => {
+                    let slice = lexer.slice();
+                    let (start, end) = self.add_pos(slice.len());
+                    self.enter_if();
+
+                    let m = IF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                    debug!(r#"@if... "{}" (start: {:?}, end: {:?})"#, m, &start, &end);
+                    if let Err(e) = self.handle_expression(m, &start, &end) {
+                        debug!("{:?}", e);
+                        tokens.push(Err(e));
+                    }
+                }
+                PatternBlock::PreprocElIf => {
+                    let slice = lexer.slice();
+                    let (start, end) = self.add_pos(slice.len());
+                    if let Err(e) = self.enter_elif(&start, &end) {
+                        debug!("{:?}", e);
+                        tokens.push(Err(e));
+                    }
+
+                    let m = ELIF_RE.captures(slice).unwrap().get(1).unwrap().as_str();
+                    debug!(r#"@elif... "{}" (start: {:?}, end: {:?})"#, m, &start, &end);
+                    if let Err(e) = self.handle_expression(m, &start, &end) {
+                        debug!("{:?}", e);
+                        tokens.push(Err(e));
+                    }
+                }
+                PatternBlock::PreprocEndIf => {
+                    let (start, end) = self.add_pos(lexer.slice().len());
+                    debug!(r"@endif (start: {:?}, end: {:?})", &start, &end);
+                    if let Err(e) = self.leave_if(&start, &end) {
+                        debug!("{:?}", e);
+                        tokens.push(Err(e));
+                    }
+                }
+                PatternBlock::PreprocElse => {
+                    let (start, end) = self.add_pos(lexer.slice().len());
+                    debug!(r"@else (start: {:?}, end: {:?})", &start, &end);
+                    if let Err(e) = self.enter_else(&start, &end) {
+                        debug!("{:?}", e);
+                        tokens.push(Err(e));
+                        continue;
+                    }
+                    self.set_copy(!self.is_handled());
+                }
+                PatternBlock::PreprocExpansion => {
+                    let slice = lexer.slice();
+                    let (start, end) = self.add_pos(slice.len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+
+                    let expansion_tokens = self.handle_expansion(slice, &start, &end);
+                    debug!("expansion (start: {:?}, end: {:?})", &start, &end);
+                    debug!("tokens: {:?}", expansion_tokens);
+                    tokens.extend(expansion_tokens);
+                }
+                // Main
+                PatternBlock::Comment | PatternBlock::Whitespace | PatternBlock::Newline => {
+                    self.add_pos(lexer.slice().len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+                }
+                PatternBlock::LBrace | PatternBlock::Unimpl => {
+                    let (start, end) = self.add_pos(lexer.slice().len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+                    let ok = Ok((start, Token::LBracePat, end));
                     debug!("{:?}", ok);
                     tokens.push(ok);
                     return lexer.morph::<Token>();
+                }
+                PatternBlock::LBracket => {
+                    let (start, end) = self.add_pos(lexer.slice().len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+                    let ok = Ok((start, Token::LBracketPat, end));
+                    debug!("{:?}", ok);
+                    tokens.push(ok);
+                    is_action = true;
+                }
+                PatternBlock::RBracket => {
+                    let (start, end) = self.add_pos(lexer.slice().len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+                    let ok = Ok((start, Token::LBracketPat, end));
+                    debug!("{:?}", ok);
+                    tokens.push(ok);
+                    is_action = false;
+                }
+                PatternBlock::Ampersand => {
+                    let (start, end) = self.add_pos(lexer.slice().len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+                    let token = if is_action {
+                        Token::AndPat
+                    } else {
+                        Token::AmpersandPat
+                    };
+                    let ok = Ok((start, token, end));
+                    debug!("{:?}", ok);
+                    tokens.push(ok);
+                }
+                PatternBlock::Pipe => {
+                    let (start, end) = self.add_pos(lexer.slice().len());
+                    if !self.is_copy() {
+                        continue;
+                    }
+                    let token = if is_action {
+                        Token::OrPat
+                    } else {
+                        Token::PipePat
+                    };
+                    let ok = Ok((start, token, end));
+                    debug!("{:?}", ok);
+                    tokens.push(ok);
                 }
                 _ => {
                     let (start, end) = self.add_pos(lexer.slice().len());
@@ -1664,6 +2121,41 @@ impl From<DefineBlock> for Token {
     }
 }
 
+impl From<PatternBlock> for Token {
+    fn from(token: PatternBlock) -> Self {
+        match token {
+            PatternBlock::Globalset => Token::GlobalsetPat,
+            PatternBlock::Right => Token::RightPat,
+            PatternBlock::Left => Token::LeftPat,
+            PatternBlock::NotEqual => Token::NotEqualPat,
+            PatternBlock::LessEqual => Token::LessEqualPat,
+            PatternBlock::GreatEqual => Token::GreatEqualPat,
+            PatternBlock::SpecAnd => Token::SpecAndPat,
+            PatternBlock::SpecOr => Token::SpecOrPat,
+            PatternBlock::SpecXor => Token::SpecXorPat,
+            PatternBlock::Ellipsis => Token::EllipsisPat,
+            PatternBlock::Caret => Token::CaretPat,
+            PatternBlock::Assign => Token::AssignPat,
+            PatternBlock::LParen => Token::LParenPat,
+            PatternBlock::RParen => Token::RParenPat,
+            PatternBlock::Comma => Token::CommaPat,
+            PatternBlock::Colon => Token::ColonPat,
+            PatternBlock::Semi => Token::SemiPat,
+            PatternBlock::Plus => Token::PlusPat,
+            PatternBlock::Minus => Token::MinusPat,
+            PatternBlock::Asterisk => Token::AsteriskPat,
+            PatternBlock::Slash => Token::SlashPat,
+            PatternBlock::Tilde => Token::TildePat,
+            PatternBlock::Less => Token::LessPat,
+            PatternBlock::Great => Token::GreatPat,
+            PatternBlock::Identifier(string) => Token::Identifier(string),
+            PatternBlock::DecInt(string) => Token::DecInt(string),
+            PatternBlock::HexInt(string) => Token::HexInt(string),
+            PatternBlock::BinInt(string) => Token::BinInt(string),
+            _ => unreachable!(),
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct LexicalError {
     error: String,
